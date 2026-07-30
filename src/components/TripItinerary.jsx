@@ -3,6 +3,7 @@ import { db } from '../firebase'; // adjust to your firebase path
 import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { addDaysToDate } from '../utils/dateUtils';
 
+
 export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [title, setTitle] = useState('');
