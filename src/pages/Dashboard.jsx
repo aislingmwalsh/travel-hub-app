@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, arrayUnion, or } from 'firebase/firestore';
 import { Plane, Plus, MapPin, Calendar, Users, LogOut, X, UserPlus, Mail, ChevronRight } from 'lucide-react';
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, onSelectTrip }) {
   const [isNewTripModalOpen, setIsNewTripModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newTrip, setNewTrip] = useState({ title: '', location: '', startDate: '', endDate: '' });
@@ -160,7 +160,7 @@ export default function Dashboard({ user }) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {trips.map((trip) => (
               <div key={trip.id} className="group relative bg-white rounded-3xl border border-slate-200 hover:border-blue-300 overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 flex flex-col h-full cursor-pointer">
-                
+                onClick={() => onSelectTrip(trip.id)}
                 {/* Card Banner Gradient */}
                 <div className="h-2 w-full bg-gradient-to-r from-teal-400 via-blue-500 to-blue-600"></div>
                 

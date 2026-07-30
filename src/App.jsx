@@ -3,18 +3,19 @@ import { auth } from './firebase';
 import { onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import TripDetails from './components/TripDetails'; // <--- 1. Import your new details component
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTripId, setSelectedTripId] = useState(null); // <--- 2. Track which trip is open
 
   useEffect(() => {
-    // 1. The "Link Catcher": Checks if the URL contains a Firebase magic link
+    // 1. The "Link Catcher"
     const checkEmailLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
         let email = window.localStorage.getItem('emailForSignIn');
         
-        // If they opened the link on a different device, ask for their email to confirm
         if (!email) {
           email = window.prompt('Please provide your email for confirmation');
         }
@@ -22,7 +23,6 @@ export default function App() {
         try {
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
-          // This cleans up the messy URL so the token disappears from the address bar
           window.history.replaceState(null, '', '/');
         } catch (error) {
           console.error('Error signing in with link', error);
@@ -32,17 +32,15 @@ export default function App() {
 
     checkEmailLink();
 
-    // 2. The "Bouncer": Listens for login or logout events in the background
+    // 2. The "Bouncer"
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false); // Stop showing the loading screen once we know their status
+      setLoading(false);
     });
 
-    // Cleanup the listener when the app closes
     return () => unsubscribe();
   }, []);
 
-  // Show a dark loading screen while Firebase checks the user's status
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -51,8 +49,26 @@ export default function App() {
     );
   }
 
+  // If not logged in, show Login
+  if (!user) {
+    return <Login />;
+  }
 
-// If the user is logged in, show the Dashboard. 
-  // If not, show the Login screen.
- return user ? <Dashboard user={user} /> : <Login />;
-} 
+  // <--- 3. If a trip is selected, show the TripDetails page instead of the Dashboard
+  if (selectedTripId) {
+    return (
+      <TripDetails 
+        tripId={selectedTripId} 
+        onBack={() => setSelectedTripId(null)} 
+      />
+    );
+  }
+
+  // Otherwise, show the Dashboard and pass down the function to select a trip
+  return (
+    <Dashboard 
+      user={user} 
+      onSelectTrip={(tripId) => setSelectedTripId(tripId)} 
+    />
+  );
+}
