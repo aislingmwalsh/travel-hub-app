@@ -1,10 +1,10 @@
 // src/components/TripItinerary.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
-import { Calendar, Clock, MapPin, Tag, Plus, Trash2 } from 'lucide-react';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-// Category color badges mapping
 const CATEGORY_COLORS = {
   Tour: 'bg-purple-50 text-purple-700 border-purple-100',
   Meal: 'bg-amber-50 text-amber-700 border-amber-100',
@@ -33,9 +33,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           orderBy("date", "asc")
         );
         const querySnapshot = await getDocs(q);
-        const items = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+        const items = querySnapshot.docs.map(document => ({
+          id: document.id,
+          ...document.data()
         }));
         setItineraryItems(items);
       } catch (error) {
@@ -85,6 +85,44 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
   };
 
+  // Handle Drag and Drop End
+  const handleDragEnd = async (result) => {
+    const { destination, source, draggableId } = result;
+
+    // If dropped outside a valid droppable area, do nothing
+    if (!destination) return;
+
+    // If dropped in the exact same position, do nothing
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    const newDate = destination.droppableId; // The droppableId is the target date string
+    const itemToUpdate = itineraryItems.find(item => item.id === draggableId);
+    if (!itemToUpdate) return;
+
+    // Optimistically update local state immediately for snappy UI feel
+    const updatedItems = itineraryItems.map(item => {
+      if (item.id === draggableId) {
+        return { ...item, date: newDate };
+      }
+      return item;
+    });
+
+    setItineraryItems(updatedItems);
+
+    // Persist the new date change to Firebase Firestore in the background
+    try {
+      const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
+      await updateDoc(itemRef, { date: newDate });
+    } catch (error) {
+      console.error("Error updating activity date via drag and drop:", error);
+    }
+  };
+
   // Group items by calendar date
   const groupedItems = itineraryItems.reduce((groups, item) => {
     const dateKey = item.date || tripStartDate;
@@ -107,7 +145,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       {/* Rich Activity Creation Form */}
       <form onSubmit={handleAddItem} className="bg-slate-50 p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end border border-slate-100">
         
-        {/* Title */}
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Activity / Event</label>
           <input 
@@ -120,7 +157,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Date Picker */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date</label>
           <input 
@@ -134,7 +170,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Time Picker */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
           <input 
@@ -146,7 +181,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Category Dropdown */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
           <select 
@@ -163,7 +197,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
-        {/* Location Input */}
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
           <input 
@@ -175,7 +208,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Submit Button */}
         <div className="md:col-span-3 lg:col-span-4 flex justify-end">
           <button 
             type="submit" 
@@ -188,78 +220,102 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         </div>
       </form>
 
-      {/* Grouped Day-by-Day Itinerary Feed */}
-      <div className="space-y-6">
-        {Object.keys(groupedItems).length === 0 ? (
-          <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-            <Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm font-medium">No activities scheduled yet. Use the form above to add your first event!</p>
-          </div>
-        ) : (
-          Object.entries(groupedItems).map(([dateStr, items]) => {
-            const formattedDateHeading = new Date(dateStr).toLocaleDateString('en-IE', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric'
-            });
+      {/* Drag and Drop Context Container */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="space-y-6">
+          {Object.keys(groupedItems).length === 0 ? (
+            <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+              <Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p className="text-sm font-medium">No activities scheduled yet. Use the form above to add your first event!</p>
+            </div>
+          ) : (
+            Object.entries(groupedItems).map(([dateStr, items]) => {
+              const formattedDateHeading = new Date(dateStr).toLocaleDateString('en-IE', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              });
 
-            return (
-              <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                {/* Day Header */}
-                <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center gap-2.5">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
-                </div>
+              return (
+                <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
+                  {/* Day Header */}
+                  <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center gap-2.5">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
+                  </div>
 
-                {/* Activities for this Day */}
-                <div className="p-3 space-y-3">
-                  {items.map((item) => {
-                    const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+                  {/* Droppable Area for each day */}
+                  <Droppable droppableId={dateStr}>
+                    {(provided, snapshot) => (
+                      <div 
+                        ref={provided.innerRef} 
+                        {...provided.droppableProps}
+                        className={`p-3 space-y-3 min-h-[70px] transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/60' : ''}`}
+                      >
+                        {items.map((item, index) => {
+                          const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
 
-                    return (
-                      <div key={item.id} className="bg-white p-4 rounded-xl border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm hover:shadow-md transition">
-                        
-                        <div className="flex items-start sm:items-center gap-4">
-                          {/* Time Badge */}
-                          <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
-                            <Clock className="w-3.5 h-3.5 text-blue-600" />
-                            {item.time}
-                          </div>
+                          return (
+                            <Draggable key={item.id} draggableId={item.id} index={index}>
+                              {(provided, snapshot) => (
+                                <div 
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  style={provided.draggableProps.style}
+                                  className={`bg-white p-4 rounded-xl border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm hover:shadow-md transition ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
+                                >
+                                  <div className="flex items-start sm:items-center gap-3">
+                                    {/* Drag Handle */}
+                                    <div {...provided.dragHandleProps} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1">
+                                      <GripVertical className="w-4 h-4" />
+                                    </div>
 
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
-                                {item.category || 'Other'}
-                              </span>
-                            </div>
+                                    {/* Time Badge */}
+                                    <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
+                                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                      {item.time}
+                                    </div>
 
-                            {item.location && (
-                              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                                <span>{item.location}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                                    <div>
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
+                                          {item.category || 'Other'}
+                                        </span>
+                                      </div>
 
-                        <button 
-                          onClick={() => handleDeleteItem(item.id)}
-                          className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition self-end sm:self-center"
-                          title="Delete activity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                                      {item.location && (
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                          <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                                          <span>{item.location}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <button 
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition self-end sm:self-center"
+                                    title="Delete activity"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })}
+                        {provided.placeholder}
                       </div>
-                    );
-                  })}
+                    )}
+                  </Droppable>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
+      </DragDropContext>
     </div>
   );
 }
