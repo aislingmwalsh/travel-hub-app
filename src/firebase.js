@@ -26,7 +26,7 @@ export const db = getFirestore(app);
 
 // 3. Magic Link Helper
 export const actionCodeSettings = {
-  url: 'http://localhost:5173', 
+  url: window.location.origin, 
   handleCodeInApp: true, 
 };
 
