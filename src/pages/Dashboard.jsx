@@ -171,4 +171,128 @@ export default function Dashboard({ user, onSelectTrip }) {
                 
                 <div className="p-6 flex flex-col flex-grow relative z-10">
                   <div className="flex justify-between items-start mb-6">
-                    <h3 className="font-bold text-xl text-
+                    <h3 className="font-bold text-xl text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-2 pr-4">
+                      {trip.title}
+                    </h3>
+                    <span className="bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border border-blue-100 shrink-0">
+                      {trip.status}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4 mt-auto">
+                    <div className="flex items-start gap-3 text-sm text-slate-600">
+                      <MapPin className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{trip.location}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <Calendar className="w-4 h-4 text-teal-500 shrink-0" />
+                      <span>{formatTripDates(trip)}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-5 border-t border-slate-100 mt-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                          {Array.from({ length: Math.min(3, Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)) }).map((_, i) => (
+                            <div key={i} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center">
+                              <Users className="w-3 h-3 text-slate-400" />
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-xs font-medium text-slate-500 ml-2">
+                          {Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)} Traveller(s)
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {trip.members?.[user.uid] === 'owner' && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setActiveInviteTrip(trip); }}
+                            className="bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 p-2 rounded-full transition-colors border border-transparent hover:border-blue-100"
+                            title="Invite a traveller"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </button>
+                        )}
+                        <div className="bg-slate-50 group-hover:bg-blue-600 text-slate-400 group-hover:text-white p-2 rounded-full transition-colors">
+                          <ChevronRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* New Trip Modal */}
+        {isNewTripModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-8 relative shadow-2xl">
+              <button onClick={() => setIsNewTripModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+              
+              <h2 className="text-2xl font-bold text-slate-900 mb-8">Draft New Trip</h2>
+              
+              <form onSubmit={handleCreateTrip} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Trip Title</label>
+                  <input required type="text" placeholder="e.g. Australia 2027" value={newTrip.title} onChange={(e) => setNewTrip({...newTrip, title: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Location</label>
+                  <input required type="text" placeholder="e.g. Melbourne & Sydney" value={newTrip.location} onChange={(e) => setNewTrip({...newTrip, location: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Start Date</label>
+                    <input required type="date" value={newTrip.startDate} onChange={(e) => setNewTrip({...newTrip, startDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">End Date</label>
+                    <input required type="date" value={newTrip.endDate} onChange={(e) => setNewTrip({...newTrip, endDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+                  </div>
+                </div>
+                <button type="submit" disabled={isSubmitting} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 shadow-md shadow-blue-500/20">
+                  {isSubmitting ? 'Securing Dates...' : 'Create Itinerary'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Invite Modal */}
+        {activeInviteTrip && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-sm p-8 relative shadow-2xl">
+              <button onClick={() => setActiveInviteTrip(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+              
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Add Traveller</h2>
+              <p className="text-sm text-slate-500 mb-8">
+                Send an invite for <span className="text-blue-600 font-medium">{activeInviteTrip.title}</span>.
+              </p>
+              
+              <form onSubmit={handleInviteTraveller} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input required type="email" placeholder="name@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-400 transition-all" />
+                  </div>
+                </div>
+                <button type="submit" disabled={isInviting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 flex justify-center items-center gap-2 shadow-md shadow-blue-500/20">
+                  <UserPlus className="w-5 h-5" />
+                  {isInviting ? 'Sending...' : 'Send Invite'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
