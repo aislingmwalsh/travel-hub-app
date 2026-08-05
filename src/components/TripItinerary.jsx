@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X, Loader2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
@@ -22,16 +22,27 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   
-  // Form States
+  // Creation Form States
   const [title, setTitle] = useState('');
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [selectedDate, setSelectedDate] = useState(tripStartDate || '');
   const [category, setCategory] = useState('Tour');
   const [location, setLocation] = useState('');
+  const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Autocomplete prediction states
+  // Expanded card & Editing States
+  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [editingCardId, setEditingCardId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editHour, setEditHour] = useState('09');
+  const [editMinute, setEditMinute] = useState('00');
+  const [editCategory, setEditCategory] = useState('Tour');
+  const [editLocation, setEditLocation] = useState('');
+  const [editDetails, setEditDetails] = useState('');
+
+  // Autocomplete prediction states for Creation form
   const [predictions, setPredictions] = useState([]);
   const [showPredictions, setShowPredictions] = useState(false);
   const autocompleteServiceRef = useRef(null);
@@ -125,7 +136,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     );
   };
 
-  // Handle selecting a prediction from the custom dropdown
   const handleSelectPrediction = (prediction) => {
     setLocation(prediction.description);
     setPredictions([]);
@@ -151,6 +161,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         date: selectedDate,
         category,
         location: location.trim(),
+        details: details.trim(),
         createdAt: new Date()
       };
 
@@ -159,6 +170,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       setTitle('');
       setLocation('');
+      setDetails('');
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (error) {
@@ -169,12 +181,54 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   };
 
   // Handle deleting an itinerary item
-  const handleDeleteItem = async (itemId) => {
+  const handleDeleteItem = async (itemId, e) => {
+    e.stopPropagation();
     try {
       await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
       setItineraryItems(prev => prev.filter(item => item.id !== itemId));
     } catch (error) {
       console.error("Error deleting item:", error);
+    }
+  };
+
+  // Start Editing an Item
+  const handleStartEdit = (item, e) => {
+    e.stopPropagation();
+    setEditingCardId(item.id);
+    setEditTitle(item.title);
+    const [h, m] = (item.time || '09:00').split(':');
+    setEditHour(h || '09');
+    setEditMinute(m || '00');
+    setEditCategory(item.category || 'Tour');
+    setEditLocation(item.location || '');
+    setEditDetails(item.details || '');
+  };
+
+  // Save Edited Item to Firebase
+  const handleSaveEdit = async (itemId, e) => {
+    e.stopPropagation();
+    if (!editTitle.trim()) {
+      alert("Title cannot be empty.");
+      return;
+    }
+
+    const updatedTime = `${editHour}:${editMinute}`;
+    const updatedFields = {
+      title: editTitle.trim(),
+      time: updatedTime,
+      category: editCategory,
+      location: editLocation.trim(),
+      details: editDetails.trim()
+    };
+
+    try {
+      const itemRef = doc(db, "trips", tripId, "itinerary", itemId);
+      await updateDoc(itemRef, updatedFields);
+
+      setItineraryItems(prev => prev.map(item => item.id === itemId ? { ...item, ...updatedFields } : item));
+      setEditingCardId(null);
+    } catch (error) {
+      console.error("Error updating itinerary item:", error);
     }
   };
 
@@ -201,7 +255,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
   };
 
-  // Handle deleting a custom category
   const handleDeleteCategory = async (catToDelete) => {
     if (categories.length <= 1) {
       alert("You must have at least one activity type.");
@@ -351,7 +404,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
-        {/* Standard Input with Custom Google Places Predictions Dropdown */}
+        {/* Location Input with Predictions Dropdown */}
         <div className="md:col-span-2 lg:col-span-2 relative" ref={dropdownRef}>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
           <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
@@ -385,14 +438,25 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           )}
         </div>
 
-        <div className="md:col-span-3 lg:col-span-4 flex justify-end">
+        <div className="md:col-span-3 lg:col-span-5">
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Activity Details & Notes (Optional)</label>
+          <textarea 
+            placeholder="Add booking reference numbers, website links, or itinerary notes..." 
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            rows={2}
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
+          />
+        </div>
+
+        <div className="md:col-span-3 lg:col-span-1 flex justify-end">
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl text-sm transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            {loading ? 'Adding Activity...' : 'Add to Itinerary'}
+            {loading ? 'Adding...' : 'Add Activity'}
           </button>
         </div>
       </form>
@@ -430,6 +494,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
                       >
                         {items.map((item, index) => {
                           const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+                          const isExpanded = expandedCardId === item.id;
+                          const isEditing = editingCardId === item.id;
+                          const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
 
                           return (
                             <Draggable key={item.id} draggableId={item.id} index={index}>
@@ -438,42 +505,194 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   style={provided.draggableProps.style}
-                                  className={`bg-white p-4 rounded-xl border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm hover:shadow-md transition ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
+                                  onClick={() => {
+                                    if (!isEditing) setExpandedCardId(isExpanded ? null : item.id);
+                                  }}
+                                  className={`bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
                                 >
-                                  <div className="flex items-start sm:items-center gap-3">
-                                    <div {...provided.dragHandleProps} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1">
-                                      <GripVertical className="w-4 h-4" />
-                                    </div>
-
-                                    <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
-                                      <Clock className="w-3.5 h-3.5 text-blue-600" />
-                                      {item.time}
-                                    </div>
-
-                                    <div>
-                                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                                        <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
-                                          {item.category || 'Other'}
-                                        </span>
+                                  {/* Main Card Header Row */}
+                                  <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="flex items-start sm:items-center gap-3">
+                                      <div 
+                                        {...provided.dragHandleProps} 
+                                        onClick={(e) => e.stopPropagation()} 
+                                        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1"
+                                      >
+                                        <GripVertical className="w-4 h-4" />
                                       </div>
 
-                                      {item.location && (
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                          <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                                          <span>{item.location}</span>
+                                      <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
+                                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                        {item.time}
+                                      </div>
+
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                          <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
+                                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
+                                            {item.category || 'Other'}
+                                          </span>
                                         </div>
+
+                                        {item.location && (
+                                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                            <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                                            <span>{item.location}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 self-end sm:self-center">
+                                      {!isEditing && (
+                                        <button 
+                                          onClick={(e) => handleStartEdit(item, e)}
+                                          className="text-slate-400 hover:text-blue-600 p-2 rounded-lg transition"
+                                          title="Edit activity"
+                                        >
+                                          <Edit2 className="w-4 h-4" />
+                                        </button>
                                       )}
+                                      <button 
+                                        onClick={(e) => handleDeleteItem(item.id, e)}
+                                        className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition"
+                                        title="Delete activity"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                      <div className="text-slate-400 p-1">
+                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                      </div>
                                     </div>
                                   </div>
 
-                                  <button 
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition self-end sm:self-center"
-                                    title="Delete activity"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  {/* Expandable Section: View Mode vs Edit Mode */}
+                                  {isExpanded && (
+                                    <div 
+                                      onClick={(e) => e.stopPropagation()} 
+                                      className="bg-slate-50 border-t border-slate-100 p-5"
+                                    >
+                                      {isEditing ? (
+                                        /* EDIT MODE FORM */
+                                        <div className="space-y-4">
+                                          <div className="flex justify-between items-center mb-2">
+                                            <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
+                                            <button 
+                                              onClick={() => setEditingCardId(null)}
+                                              className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div className="md:col-span-2">
+                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label>
+                                              <input 
+                                                type="text" 
+                                                value={editTitle}
+                                                onChange={(e) => setEditTitle(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                              />
+                                            </div>
+
+                                            <div>
+                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label>
+                                              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm text-slate-900">
+                                                <select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none font-medium">
+                                                  {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                                                </select>
+                                                <span>:</span>
+                                                <select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium">
+                                                  {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+                                                </select>
+                                              </div>
+                                            </div>
+
+                                            <div>
+                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label>
+                                              <select 
+                                                value={editCategory}
+                                                onChange={(e) => setEditCategory(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                              >
+                                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                              </select>
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label>
+                                              <input 
+                                                type="text" 
+                                                value={editLocation}
+                                                onChange={(e) => setEditLocation(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                              />
+                                            </div>
+
+                                            <div className="md:col-span-3">
+                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label>
+                                              <textarea 
+                                                value={editDetails}
+                                                onChange={(e) => setEditDetails(e.target.value)}
+                                                rows={2}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div className="flex justify-end gap-2 pt-2">
+                                            <button 
+                                              onClick={(e) => handleSaveEdit(item.id, e)}
+                                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+                                            >
+                                              <Save className="w-3.5 h-3.5" /> Save Changes
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        /* VIEW MODE (Side-by-Side Grid) */
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                          {/* Left Column: Long Description / Details */}
+                                          <div className="md:col-span-2 space-y-2">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                              <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                              Activity Details & Notes
+                                            </div>
+                                            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-4 rounded-xl border border-slate-200">
+                                              {item.details && item.details.trim() ? item.details : "No additional notes or description provided for this activity."}
+                                            </p>
+                                          </div>
+
+                                          {/* Right Column: Clickable Map Link Card */}
+                                          <div className="space-y-2 flex flex-col">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                              <MapPin className="w-3.5 h-3.5 text-teal-500" />
+                                              Location & Map
+                                            </div>
+                                            <a 
+                                              href={mapsSearchUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm"
+                                            >
+                                              <div>
+                                                <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">
+                                                  {item.location}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400">Click to open directions and venue details</p>
+                                              </div>
+                                              <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline">
+                                                <span>Open in Google Maps</span>
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                              </div>
+                                            </a>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
                                 </div>
                               )}
                             </Draggable>
