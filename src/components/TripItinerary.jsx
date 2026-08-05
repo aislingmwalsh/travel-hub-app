@@ -18,16 +18,24 @@ const CATEGORY_COLORS = {
   Other: 'bg-slate-100 text-slate-700 border-slate-200'
 };
 
-// Helper function to generate all YYYY-MM-DD dates between a start and end date
+// Robust helper function to generate all YYYY-MM-DD dates between a start and end date
 function getTripDateRange(startDateStr, endDateStr) {
-  if (!startDateStr || !endDateStr) return startDateStr ? [startDateStr] : [];
-  
+  if (!startDateStr) return [];
+  if (!endDateStr) return [startDateStr];
+
   const dates = [];
-  const curr = new Date(startDateStr);
-  const last = new Date(endDateStr);
+  // Parse with split to avoid local timezone offset shifting dates backward
+  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+
+  const curr = new Date(startYear, startMonth - 1, startDay);
+  const last = new Date(endYear, endMonth - 1, endDay);
 
   while (curr <= last) {
-    dates.push(curr.toISOString().split('T')[0]);
+    const year = curr.getFullYear();
+    const month = String(curr.getMonth() + 1).padStart(2, '0');
+    const day = String(curr.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
     curr.setDate(curr.getDate() + 1);
   }
   return dates;
@@ -46,6 +54,13 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Keep creation form date synced if tripStartDate updates
+  useEffect(() => {
+    if (tripStartDate && !selectedDate) {
+      setSelectedDate(tripStartDate);
+    }
+  }, [tripStartDate]);
 
   // Expanded card & Editing States
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -324,10 +339,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
   };
 
-  // Generate all scheduled days or fall back to dates with items if trip dates aren't set
+  // Alphabetically sorted categories list for dropdowns
+  const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
+
+  // Generate all scheduled days across the full trip range
   const allTripDates = getTripDateRange(tripStartDate, tripEndDate);
-  
-  // Ensure any items with dates outside the formal trip range are still displayed
   const itemDates = itineraryItems.map(item => item.date).filter(Boolean);
   const combinedDatesSet = new Set([...allTripDates, ...itemDates]);
   const sortedDates = Array.from(combinedDatesSet).sort();
@@ -415,6 +431,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </div>
         </div>
 
+        {/* Alphabetically Sorted Type Dropdown */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
           <select 
@@ -422,7 +439,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
             onChange={(e) => setCategory(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
           >
-            {categories.map((cat) => (
+            {sortedCategories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
@@ -485,7 +502,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         </div>
       </form>
 
-      {/* Drag and Drop Itinerary Feed (Pre-rendered for all trip dates) */}
+      {/* Drag and Drop Itinerary Feed */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           {sortedDates.length === 0 ? (
@@ -496,7 +513,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           ) : (
             sortedDates.map((dateStr) => {
               const items = groupedItems[dateStr] || [];
-              const formattedDateHeading = new Date(dateStr).toLocaleDateString('en-IE', {
+              const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'short',
@@ -663,7 +680,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
                                                   onChange={(e) => setEditCategory(e.target.value)}
                                                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
                                                 >
-                                                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                  {sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                                 </select>
                                               </div>
 
@@ -761,7 +778,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-8 relative shadow-2xl">
-            <button onClick={() => setIsSettingsOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+            <button onClick={() => setIsSettingsOpen(true)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
               <X className="w-4 h-4" />
             </button>
             
@@ -783,7 +800,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
             </form>
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {categories.map((cat) => (
+              {sortedCategories.map((cat) => (
                 <div key={cat} className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
                   <span className="font-semibold text-slate-800 text-sm">{cat}</span>
                   <button 
