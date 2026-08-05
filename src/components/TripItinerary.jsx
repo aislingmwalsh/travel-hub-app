@@ -18,18 +18,19 @@ const CATEGORY_COLORS = {
   Other: 'bg-slate-100 text-slate-700 border-slate-200'
 };
 
-// Robust helper function to generate all YYYY-MM-DD dates between a start and end date
+// Helper function to generate all YYYY-MM-DD dates between a start and end date
 function getTripDateRange(startDateStr, endDateStr) {
   if (!startDateStr) return [];
   if (!endDateStr) return [startDateStr];
 
   const dates = [];
-  // Parse with split to avoid local timezone offset shifting dates backward
   const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
   const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
 
   const curr = new Date(startYear, startMonth - 1, startDay);
   const last = new Date(endYear, endMonth - 1, endDay);
+
+  if (isNaN(curr.getTime()) || isNaN(last.getTime())) return [startDateStr];
 
   while (curr <= last) {
     const year = curr.getFullYear();
@@ -49,18 +50,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [title, setTitle] = useState('');
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
-  const [selectedDate, setSelectedDate] = useState(tripStartDate || '');
+  const [selectedDate, setSelectedDate] = useState('');
   const [category, setCategory] = useState('Tour');
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Keep creation form date synced if tripStartDate updates
-  useEffect(() => {
-    if (tripStartDate && !selectedDate) {
-      setSelectedDate(tripStartDate);
-    }
-  }, [tripStartDate]);
 
   // Expanded card & Editing States
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -110,6 +104,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
     fetchData();
   }, [tripId]);
+
+  // Determine effective start and end dates (falls back to props, then itinerary items, then today)
+  const effectiveStartDate = tripStartDate || (itineraryItems.length > 0 ? itineraryItems.map(i => i.date).sort()[0] : new Date().toISOString().split('T')[0]);
+  const effectiveEndDate = tripEndDate || (itineraryItems.length > 0 ? itineraryItems.map(i => i.date).sort().reverse()[0] : effectiveStartDate);
+
+  // Keep creation form date synced
+  useEffect(() => {
+    if (effectiveStartDate && !selectedDate) {
+      setSelectedDate(effectiveStartDate);
+    }
+  }, [effectiveStartDate, selectedDate]);
 
   // Initialize Google Maps AutocompleteService safely
   useEffect(() => {
@@ -226,7 +231,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     e.stopPropagation();
     setEditingCardId(item.id);
     setEditTitle(item.title);
-    setEditDate(item.date || tripStartDate);
+    setEditDate(item.date || effectiveStartDate);
     const [h, m] = (item.time || '09:00').split(':');
     setEditHour(h || '09');
     setEditMinute(m || '00');
@@ -343,14 +348,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
 
   // Generate all scheduled days across the full trip range
-  const allTripDates = getTripDateRange(tripStartDate, tripEndDate);
+  const allTripDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
   const itemDates = itineraryItems.map(item => item.date).filter(Boolean);
   const combinedDatesSet = new Set([...allTripDates, ...itemDates]);
   const sortedDates = Array.from(combinedDatesSet).sort();
 
   // Group items by date
   const groupedItems = itineraryItems.reduce((groups, item) => {
-    const dateKey = item.date || tripStartDate;
+    const dateKey = item.date || effectiveStartDate;
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
@@ -396,8 +401,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date</label>
           <input 
             type="date" 
-            min={tripStartDate}
-            max={tripEndDate}
+            min={effectiveStartDate}
+            max={effectiveEndDate}
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             required
@@ -652,8 +657,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
                                                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label>
                                                 <input 
                                                   type="date" 
-                                                  min={tripStartDate}
-                                                  max={tripEndDate}
+                                                  min={effectiveStartDate}
+                                                  max={effectiveEndDate}
                                                   value={editDate}
                                                   onChange={(e) => setEditDate(e.target.value)}
                                                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
@@ -778,7 +783,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-8 relative shadow-2xl">
-            <button onClick={() => setIsSettingsOpen(true)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+            <button onClick={() => setIsSettingsOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
               <X className="w-4 h-4" />
             </button>
             
