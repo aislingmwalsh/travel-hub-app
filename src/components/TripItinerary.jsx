@@ -4,6 +4,9 @@ import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import TimePicker from 'react-time-picker';
+import 'react-time-picker/dist/TimePicker.css';
+import 'react-clock/dist/Clock.css';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -232,16 +235,18 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Precise Time Picker */}
+        {/* Dedicated React Time Picker Component */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
-          <input 
-            type="time" 
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            required
-            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
-          />
+          <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus-within:border-blue-500 flex items-center">
+            <TimePicker 
+              onChange={setTime} 
+              value={time} 
+              clearIcon={null}
+              clockIcon={<Clock className="w-4 h-4 text-slate-400 ml-1" />}
+              className="w-full custom-time-picker"
+            />
+          </div>
         </div>
 
         <div className="md:col-span-1 lg:col-span-1">
@@ -257,7 +262,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
-        {/* Clean Location Input */}
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
           <input 
