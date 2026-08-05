@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X, Loader2 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
@@ -31,13 +31,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Autocomplete prediction states
+  const [predictions, setPredictions] = useState([]);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const autocompleteServiceRef = useRef(null);
+  const dropdownRef = useRef(null);
+
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-
-  // Ref for the Google Maps Web Component container
-  const autocompleteContainerRef = useRef(null);
-  const placeElementRef = useRef(null);
 
   // Fetch itinerary items and custom categories from Firestore
   useEffect(() => {
@@ -67,51 +69,68 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     fetchData();
   }, [tripId]);
 
-  // Initialize Google's modern PlaceAutocompleteElement web component
+  // Initialize Google Maps AutocompleteService safely
   useEffect(() => {
-    let isMounted = true;
-
-    async function initAutocomplete() {
-      if (!window.google || !autocompleteContainerRef.current) return;
-
-      try {
-        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary("places");
-        
-        if (!isMounted) return;
-
-        // Create the modern autocomplete element
-        const autocompleteElement = new PlaceAutocompleteElement();
-        autocompleteElement.placeholder = "Search verified location...";
-        
-        // Style it to match your rounded-xl input design
-        autocompleteElement.style.width = "100%";
-        autocompleteElement.style.borderRadius = "0.75rem";
-
-        // Listen for user selecting a place prediction
-        autocompleteElement.addEventListener('gmp-select', async ({ placePrediction }) => {
-          if (!placePrediction) return;
-          const place = placePrediction.toPlace();
-          await place.fetchFields({ fields: ['displayName', 'formattedAddress'] });
-          
-          const resolvedName = place.formattedAddress || place.displayName || "";
-          setLocation(resolvedName);
-        });
-
-        // Clear container and append web component
-        autocompleteContainerRef.current.innerHTML = '';
-        autocompleteContainerRef.current.appendChild(autocompleteElement);
-        placeElementRef.current = autocompleteElement;
-      } catch (err) {
-        console.error("Error loading PlaceAutocompleteElement:", err);
+    function initService() {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
       }
     }
-
-    initAutocomplete();
-
-    return () => {
-      isMounted = false;
-    };
+    if (window.google && window.google.maps) {
+      initService();
+    } else {
+      const checkInterval = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          initService();
+          clearInterval(checkInterval);
+        }
+      }, 300);
+      return () => clearInterval(checkInterval);
+    }
   }, []);
+
+  // Close prediction dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowPredictions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle typing in the location input to fetch predictions
+  const handleLocationChange = (e) => {
+    const value = e.target.value;
+    setLocation(value);
+
+    if (!value.trim() || !autocompleteServiceRef.current) {
+      setPredictions([]);
+      setShowPredictions(false);
+      return;
+    }
+
+    autocompleteServiceRef.current.getPlacePredictions(
+      { input: value },
+      (results, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+          setPredictions(results);
+          setShowPredictions(true);
+        } else {
+          setPredictions([]);
+          setShowPredictions(false);
+        }
+      }
+    );
+  };
+
+  // Handle selecting a prediction from the custom dropdown
+  const handleSelectPrediction = (prediction) => {
+    setLocation(prediction.description);
+    setPredictions([]);
+    setShowPredictions(false);
+  };
 
   // Handle adding a new activity
   const handleAddItem = async (e) => {
@@ -119,7 +138,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     if (!title.trim() || !selectedDate) return;
 
     if (!location.trim()) {
-      alert("Please select a valid location from the Google Maps predictions dropdown.");
+      alert("Please select or enter a location.");
       return;
     }
 
@@ -140,9 +159,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       setTitle('');
       setLocation('');
-      if (placeElementRef.current) {
-        placeElementRef.current.value = '';
-      }
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (error) {
@@ -335,24 +351,37 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
-        {/* Modern Google Places Autocomplete Web Component Container */}
-        <div className="md:col-span-2 lg:col-span-2">
+        {/* Standard Input with Custom Google Places Predictions Dropdown */}
+        <div className="md:col-span-2 lg:col-span-2 relative" ref={dropdownRef}>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
           <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
-            <div ref={autocompleteContainerRef} className="w-full py-1 px-2">
-              {/* Fallback text while web component initializes */}
-              <input 
-                type="text" 
-                placeholder="Loading Google Places..." 
-                disabled 
-                className="w-full bg-transparent text-sm text-slate-400 px-2 py-2 focus:outline-none"
-              />
-            </div>
+            <MapPin className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              type="text" 
+              placeholder="Search location..." 
+              value={location}
+              onChange={handleLocationChange}
+              onFocus={() => {
+                if (predictions.length > 0) setShowPredictions(true);
+              }}
+              required
+              className="w-full bg-white border-0 pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none"
+            />
           </div>
-          {location && (
-            <p className="text-[11px] text-teal-600 font-medium mt-1 ml-1 truncate">
-              Selected: {location}
-            </p>
+
+          {showPredictions && predictions.length > 0 && (
+            <ul className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto z-50">
+              {predictions.map((prediction) => (
+                <li
+                  key={prediction.place_id}
+                  onClick={() => handleSelectPrediction(prediction)}
+                  className="px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 flex items-center gap-2"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                  <span className="truncate">{prediction.description}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 
