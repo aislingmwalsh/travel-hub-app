@@ -4,9 +4,6 @@ import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import TimePicker from 'react-time-picker';
-import 'react-time-picker/dist/TimePicker.css';
-import 'react-clock/dist/Clock.css';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -27,7 +24,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   
   // Form States
   const [title, setTitle] = useState('');
-  const [time, setTime] = useState('09:00');
+  const [selectedHour, setSelectedHour] = useState('09');
+  const [selectedMinute, setSelectedMinute] = useState('00');
   const [selectedDate, setSelectedDate] = useState(tripStartDate || '');
   const [category, setCategory] = useState('Tour');
   const [location, setLocation] = useState('');
@@ -72,9 +70,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
 
     setLoading(true);
     try {
+      const formattedTime = `${selectedHour}:${selectedMinute}`;
       const newItem = {
         title,
-        time: time || '09:00',
+        time: formattedTime,
         date: selectedDate,
         category,
         location: location.trim(),
@@ -86,7 +85,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       setTitle('');
       setLocation('');
-      setTime('09:00');
+      setSelectedHour('09');
+      setSelectedMinute('00');
     } catch (error) {
       console.error("Error adding itinerary item:", error);
     } finally {
@@ -195,6 +195,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     groupedItems[date].sort((a, b) => a.time.localeCompare(b.time));
   });
 
+  // Generate hours (00 to 23)
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  // Generate minutes in 5-minute increments
+  const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
   return (
     <div className="mt-8 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
       <div className="flex justify-between items-center mb-6">
@@ -235,17 +240,30 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Dedicated React Time Picker Component */}
+        {/* Clean Hours & Minutes Dropdown Selectors */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
-          <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus-within:border-blue-500 flex items-center">
-            <TimePicker 
-              onChange={setTime} 
-              value={time} 
-              clearIcon={null}
-              clockIcon={<Clock className="w-4 h-4 text-slate-400 ml-1" />}
-              className="w-full custom-time-picker"
-            />
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-2 text-sm text-slate-900 focus-within:border-blue-500">
+            <Clock className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+            <select 
+              value={selectedHour}
+              onChange={(e) => setSelectedHour(e.target.value)}
+              className="bg-transparent focus:outline-none font-medium cursor-pointer py-1"
+            >
+              {hours.map(h => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
+            <span className="text-slate-400 font-bold">:</span>
+            <select 
+              value={selectedMinute}
+              onChange={(e) => setSelectedMinute(e.target.value)}
+              className="bg-transparent focus:outline-none font-medium cursor-pointer py-1"
+            >
+              {minutes.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
           </div>
         </div>
 
