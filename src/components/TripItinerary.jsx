@@ -1,5 +1,5 @@
 // src/components/TripItinerary.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X } from 'lucide-react';
@@ -35,6 +35,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
+  // Google Places Autocomplete Ref
+  const locationInputRef = useRef(null);
+
   // Fetch itinerary items and custom categories from Firestore
   useEffect(() => {
     async function fetchData() {
@@ -63,10 +66,31 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     fetchData();
   }, [tripId]);
 
+  // Initialize Google Places Autocomplete safely
+  useEffect(() => {
+    if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
+      const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
+        fields: ['formatted_address', 'name']
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        const selectedValue = place.formatted_address || place.name || locationInputRef.current.value;
+        setLocation(selectedValue);
+      });
+    }
+  }, []);
+
   // Handle adding a new activity
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (!title.trim() || !selectedDate) return;
+
+    const finalLocation = locationInputRef.current ? locationInputRef.current.value : location;
+    if (!finalLocation.trim()) {
+      alert("Please select a valid location from the Google Maps suggestions.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -76,7 +100,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         time: formattedTime,
         date: selectedDate,
         category,
-        location: location.trim(),
+        location: finalLocation.trim(),
         createdAt: new Date()
       };
 
@@ -85,6 +109,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       setTitle('');
       setLocation('');
+      if (locationInputRef.current) locationInputRef.current.value = '';
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (error) {
@@ -195,9 +220,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     groupedItems[date].sort((a, b) => a.time.localeCompare(b.time));
   });
 
-  // Generate hours (00 to 23)
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  // Generate minutes in 5-minute increments
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
   return (
@@ -240,7 +263,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           />
         </div>
 
-        {/* Clean Hours & Minutes Dropdown Selectors */}
         <div className="md:col-span-1 lg:col-span-1">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-2 text-sm text-slate-900 focus-within:border-blue-500">
@@ -280,15 +302,21 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
+        {/* Google Places Autocomplete Location Input */}
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
-          <input 
-            type="text" 
-            placeholder="e.g., St. James's Gate, Dublin" 
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-          />
+          <div className="relative flex items-center">
+            <MapPin className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              ref={locationInputRef}
+              type="text" 
+              placeholder="Search Google Maps location..." 
+              defaultValue={location}
+              onChange={(e) => setLocation(e.target.value)}
+              required
+              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
         </div>
 
         <div className="md:col-span-3 lg:col-span-4 flex justify-end">
