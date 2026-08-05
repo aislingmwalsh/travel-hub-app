@@ -35,8 +35,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // Google Places Autocomplete Ref
-  const locationInputRef = useRef(null);
+  // Ref for the Google Maps Web Component container
+  const autocompleteContainerRef = useRef(null);
+  const placeElementRef = useRef(null);
 
   // Fetch itinerary items and custom categories from Firestore
   useEffect(() => {
@@ -66,19 +67,50 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     fetchData();
   }, [tripId]);
 
-  // Initialize Google Places Autocomplete safely
+  // Initialize Google's modern PlaceAutocompleteElement web component
   useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places && locationInputRef.current) {
-      const autocomplete = new window.google.maps.places.Autocomplete(locationInputRef.current, {
-        fields: ['formatted_address', 'name']
-      });
+    let isMounted = true;
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        const selectedValue = place.formatted_address || place.name || locationInputRef.current.value;
-        setLocation(selectedValue);
-      });
+    async function initAutocomplete() {
+      if (!window.google || !autocompleteContainerRef.current) return;
+
+      try {
+        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary("places");
+        
+        if (!isMounted) return;
+
+        // Create the modern autocomplete element
+        const autocompleteElement = new PlaceAutocompleteElement();
+        autocompleteElement.placeholder = "Search verified location...";
+        
+        // Style it to match your rounded-xl input design
+        autocompleteElement.style.width = "100%";
+        autocompleteElement.style.borderRadius = "0.75rem";
+
+        // Listen for user selecting a place prediction
+        autocompleteElement.addEventListener('gmp-select', async ({ placePrediction }) => {
+          if (!placePrediction) return;
+          const place = placePrediction.toPlace();
+          await place.fetchFields({ fields: ['displayName', 'formattedAddress'] });
+          
+          const resolvedName = place.formattedAddress || place.displayName || "";
+          setLocation(resolvedName);
+        });
+
+        // Clear container and append web component
+        autocompleteContainerRef.current.innerHTML = '';
+        autocompleteContainerRef.current.appendChild(autocompleteElement);
+        placeElementRef.current = autocompleteElement;
+      } catch (err) {
+        console.error("Error loading PlaceAutocompleteElement:", err);
+      }
     }
+
+    initAutocomplete();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Handle adding a new activity
@@ -86,9 +118,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     e.preventDefault();
     if (!title.trim() || !selectedDate) return;
 
-    const finalLocation = locationInputRef.current ? locationInputRef.current.value : location;
-    if (!finalLocation.trim()) {
-      alert("Please select a valid location from the Google Maps suggestions.");
+    if (!location.trim()) {
+      alert("Please select a valid location from the Google Maps predictions dropdown.");
       return;
     }
 
@@ -100,7 +131,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         time: formattedTime,
         date: selectedDate,
         category,
-        location: finalLocation.trim(),
+        location: location.trim(),
         createdAt: new Date()
       };
 
@@ -109,7 +140,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       setTitle('');
       setLocation('');
-      if (locationInputRef.current) locationInputRef.current.value = '';
+      if (placeElementRef.current) {
+        placeElementRef.current.value = '';
+      }
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (error) {
@@ -302,21 +335,25 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
           </select>
         </div>
 
-        {/* Google Places Autocomplete Location Input */}
+        {/* Modern Google Places Autocomplete Web Component Container */}
         <div className="md:col-span-2 lg:col-span-2">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
-          <div className="relative flex items-center">
-            <MapPin className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input 
-              ref={locationInputRef}
-              type="text" 
-              placeholder="Search Google Maps location..." 
-              defaultValue={location}
-              onChange={(e) => setLocation(e.target.value)}
-              required
-              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            />
+          <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
+            <div ref={autocompleteContainerRef} className="w-full py-1 px-2">
+              {/* Fallback text while web component initializes */}
+              <input 
+                type="text" 
+                placeholder="Loading Google Places..." 
+                disabled 
+                className="w-full bg-transparent text-sm text-slate-400 px-2 py-2 focus:outline-none"
+              />
+            </div>
           </div>
+          {location && (
+            <p className="text-[11px] text-teal-600 font-medium mt-1 ml-1 truncate">
+              Selected: {location}
+            </p>
+          )}
         </div>
 
         <div className="md:col-span-3 lg:col-span-4 flex justify-end">
