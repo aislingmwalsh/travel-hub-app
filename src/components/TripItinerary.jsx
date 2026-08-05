@@ -18,6 +18,21 @@ const CATEGORY_COLORS = {
   Other: 'bg-slate-100 text-slate-700 border-slate-200'
 };
 
+// Helper function to generate all YYYY-MM-DD dates between a start and end date
+function getTripDateRange(startDateStr, endDateStr) {
+  if (!startDateStr || !endDateStr) return startDateStr ? [startDateStr] : [];
+  
+  const dates = [];
+  const curr = new Date(startDateStr);
+  const last = new Date(endDateStr);
+
+  while (curr <= last) {
+    dates.push(curr.toISOString().split('T')[0]);
+    curr.setDate(curr.getDate() + 1);
+  }
+  return dates;
+}
+
 export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
@@ -36,6 +51,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [editingCardId, setEditingCardId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
   const [editHour, setEditHour] = useState('09');
   const [editMinute, setEditMinute] = useState('00');
   const [editCategory, setEditCategory] = useState('Tour');
@@ -111,7 +127,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle typing in the location input to fetch predictions
   const handleLocationChange = (e) => {
     const value = e.target.value;
     setLocation(value);
@@ -196,6 +211,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     e.stopPropagation();
     setEditingCardId(item.id);
     setEditTitle(item.title);
+    setEditDate(item.date || tripStartDate);
     const [h, m] = (item.time || '09:00').split(':');
     setEditHour(h || '09');
     setEditMinute(m || '00');
@@ -207,14 +223,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   // Save Edited Item to Firebase
   const handleSaveEdit = async (itemId, e) => {
     e.stopPropagation();
-    if (!editTitle.trim()) {
-      alert("Title cannot be empty.");
+    if (!editTitle.trim() || !editDate) {
+      alert("Title and Date cannot be empty.");
       return;
     }
 
     const updatedTime = `${editHour}:${editMinute}`;
     const updatedFields = {
       title: editTitle.trim(),
+      date: editDate,
       time: updatedTime,
       category: editCategory,
       location: editLocation.trim(),
@@ -232,7 +249,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
   };
 
-  // Handle saving a new custom category
   const handleAddCategory = async (e) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -308,7 +324,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
   };
 
-  // Group items by calendar date
+  // Generate all scheduled days or fall back to dates with items if trip dates aren't set
+  const allTripDates = getTripDateRange(tripStartDate, tripEndDate);
+  
+  // Ensure any items with dates outside the formal trip range are still displayed
+  const itemDates = itineraryItems.map(item => item.date).filter(Boolean);
+  const combinedDatesSet = new Set([...allTripDates, ...itemDates]);
+  const sortedDates = Array.from(combinedDatesSet).sort();
+
+  // Group items by date
   const groupedItems = itineraryItems.reduce((groups, item) => {
     const dateKey = item.date || tripStartDate;
     if (!groups[dateKey]) {
@@ -461,16 +485,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
         </div>
       </form>
 
-      {/* Drag and Drop Itinerary Feed */}
+      {/* Drag and Drop Itinerary Feed (Pre-rendered for all trip dates) */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
-          {Object.keys(groupedItems).length === 0 ? (
+          {sortedDates.length === 0 ? (
             <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
               <Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" />
-              <p className="text-sm font-medium">No activities scheduled yet. Use the form above to add your first event!</p>
+              <p className="text-sm font-medium">No dates available for this trip.</p>
             </div>
           ) : (
-            Object.entries(groupedItems).map(([dateStr, items]) => {
+            sortedDates.map((dateStr) => {
+              const items = groupedItems[dateStr] || [];
               const formattedDateHeading = new Date(dateStr).toLocaleDateString('en-IE', {
                 weekday: 'long',
                 day: 'numeric',
@@ -480,9 +505,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
 
               return (
                 <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                  <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center gap-2.5">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
+                  <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
+                    </div>
+                    {items.length === 0 && (
+                      <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>
+                    )}
                   </div>
 
                   <Droppable droppableId={dateStr}>
@@ -490,214 +520,232 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
                       <div 
                         ref={provided.innerRef} 
                         {...provided.droppableProps}
-                        className={`p-3 space-y-3 min-h-[70px] transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/60' : ''}`}
+                        className={`p-3 space-y-3 min-h-[75px] transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300 rounded-b-2xl' : ''}`}
                       >
-                        {items.map((item, index) => {
-                          const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
-                          const isExpanded = expandedCardId === item.id;
-                          const isEditing = editingCardId === item.id;
-                          const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
+                        {items.length === 0 ? (
+                          <div className="h-12 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
+                            Drop activities here
+                          </div>
+                        ) : (
+                          items.map((item, index) => {
+                            const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+                            const isExpanded = expandedCardId === item.id;
+                            const isEditing = editingCardId === item.id;
+                            const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
 
-                          return (
-                            <Draggable key={item.id} draggableId={item.id} index={index}>
-                              {(provided, snapshot) => (
-                                <div 
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  style={provided.draggableProps.style}
-                                  onClick={() => {
-                                    if (!isEditing) setExpandedCardId(isExpanded ? null : item.id);
-                                  }}
-                                  className={`bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
-                                >
-                                  {/* Main Card Header Row */}
-                                  <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div className="flex items-start sm:items-center gap-3">
-                                      <div 
-                                        {...provided.dragHandleProps} 
-                                        onClick={(e) => e.stopPropagation()} 
-                                        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1"
-                                      >
-                                        <GripVertical className="w-4 h-4" />
-                                      </div>
-
-                                      <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
-                                        <Clock className="w-3.5 h-3.5 text-blue-600" />
-                                        {item.time}
-                                      </div>
-
-                                      <div>
-                                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                                          <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
-                                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
-                                            {item.category || 'Other'}
-                                          </span>
+                            return (
+                              <Draggable key={item.id} draggableId={item.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div 
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    style={provided.draggableProps.style}
+                                    onClick={() => {
+                                      if (!isEditing) setExpandedCardId(isExpanded ? null : item.id);
+                                    }}
+                                    className={`bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
+                                  >
+                                    {/* Main Card Header Row */}
+                                    <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                      <div className="flex items-start sm:items-center gap-3">
+                                        <div 
+                                          {...provided.dragHandleProps} 
+                                          onClick={(e) => e.stopPropagation()} 
+                                          className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-1"
+                                        >
+                                          <GripVertical className="w-4 h-4" />
                                         </div>
 
-                                        {item.location && (
-                                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                            <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                                            <span>{item.location}</span>
+                                        <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
+                                          <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                          {item.time}
+                                        </div>
+
+                                        <div>
+                                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>
+                                              {item.category || 'Other'}
+                                            </span>
+                                          </div>
+
+                                          {item.location && (
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                              <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                                              <span>{item.location}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 self-end sm:self-center">
+                                        {!isEditing && (
+                                          <button 
+                                            onClick={(e) => handleStartEdit(item, e)}
+                                            className="text-slate-400 hover:text-blue-600 p-2 rounded-lg transition"
+                                            title="Edit activity"
+                                          >
+                                            <Edit2 className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                        <button 
+                                          onClick={(e) => handleDeleteItem(item.id, e)}
+                                          className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition"
+                                          title="Delete activity"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <div className="text-slate-400 p-1">
+                                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Expandable Section: View Mode vs Edit Mode */}
+                                    {isExpanded && (
+                                      <div 
+                                        onClick={(e) => e.stopPropagation()} 
+                                        className="bg-slate-50 border-t border-slate-100 p-5"
+                                      >
+                                        {isEditing ? (
+                                          /* EDIT MODE FORM */
+                                          <div className="space-y-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                              <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
+                                              <button 
+                                                onClick={() => setEditingCardId(null)}
+                                                className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                              <div className="md:col-span-2">
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label>
+                                                <input 
+                                                  type="text" 
+                                                  value={editTitle}
+                                                  onChange={(e) => setEditTitle(e.target.value)}
+                                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                                />
+                                              </div>
+
+                                              <div>
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label>
+                                                <input 
+                                                  type="date" 
+                                                  min={tripStartDate}
+                                                  max={tripEndDate}
+                                                  value={editDate}
+                                                  onChange={(e) => setEditDate(e.target.value)}
+                                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                                />
+                                              </div>
+
+                                              <div>
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label>
+                                                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm text-slate-900">
+                                                  <select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none font-medium">
+                                                    {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                                                  </select>
+                                                  <span>:</span>
+                                                  <select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium">
+                                                    {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+                                                  </select>
+                                                </div>
+                                              </div>
+
+                                              <div>
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label>
+                                                <select 
+                                                  value={editCategory}
+                                                  onChange={(e) => setEditCategory(e.target.value)}
+                                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                                >
+                                                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                </select>
+                                              </div>
+
+                                              <div className="md:col-span-2">
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label>
+                                                <input 
+                                                  type="text" 
+                                                  value={editLocation}
+                                                  onChange={(e) => setEditLocation(e.target.value)}
+                                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                                                />
+                                              </div>
+
+                                              <div className="md:col-span-3">
+                                                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label>
+                                                <textarea 
+                                                  value={editDetails}
+                                                  onChange={(e) => setEditDetails(e.target.value)}
+                                                  rows={2}
+                                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="flex justify-end gap-2 pt-2">
+                                              <button 
+                                                onClick={(e) => handleSaveEdit(item.id, e)}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+                                              >
+                                                <Save className="w-3.5 h-3.5" /> Save Changes
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          /* VIEW MODE (Side-by-Side Grid) */
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {/* Left Column: Long Description / Details */}
+                                            <div className="md:col-span-2 space-y-2">
+                                              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                                Activity Details & Notes
+                                              </div>
+                                              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-4 rounded-xl border border-slate-200">
+                                                {item.details && item.details.trim() ? item.details : "No additional notes or description provided for this activity."}
+                                              </p>
+                                            </div>
+
+                                            {/* Right Column: Clickable Map Link Card */}
+                                            <div className="space-y-2 flex flex-col">
+                                              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                <MapPin className="w-3.5 h-3.5 text-teal-500" />
+                                                Location & Map
+                                              </div>
+                                              <a 
+                                                href={mapsSearchUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm"
+                                              >
+                                                <div>
+                                                  <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">
+                                                    {item.location}
+                                                  </p>
+                                                  <p className="text-[11px] text-slate-400">Click to open directions and venue details</p>
+                                                </div>
+                                                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline">
+                                                  <span>Open in Google Maps</span>
+                                                  <ExternalLink className="w-3.5 h-3.5" />
+                                                </div>
+                                              </a>
+                                            </div>
                                           </div>
                                         )}
                                       </div>
-                                    </div>
+                                    )}
 
-                                    <div className="flex items-center gap-2 self-end sm:self-center">
-                                      {!isEditing && (
-                                        <button 
-                                          onClick={(e) => handleStartEdit(item, e)}
-                                          className="text-slate-400 hover:text-blue-600 p-2 rounded-lg transition"
-                                          title="Edit activity"
-                                        >
-                                          <Edit2 className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                      <button 
-                                        onClick={(e) => handleDeleteItem(item.id, e)}
-                                        className="text-slate-400 hover:text-red-500 p-2 rounded-lg transition"
-                                        title="Delete activity"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                      <div className="text-slate-400 p-1">
-                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                      </div>
-                                    </div>
                                   </div>
-
-                                  {/* Expandable Section: View Mode vs Edit Mode */}
-                                  {isExpanded && (
-                                    <div 
-                                      onClick={(e) => e.stopPropagation()} 
-                                      className="bg-slate-50 border-t border-slate-100 p-5"
-                                    >
-                                      {isEditing ? (
-                                        /* EDIT MODE FORM */
-                                        <div className="space-y-4">
-                                          <div className="flex justify-between items-center mb-2">
-                                            <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
-                                            <button 
-                                              onClick={() => setEditingCardId(null)}
-                                              className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-
-                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <div className="md:col-span-2">
-                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label>
-                                              <input 
-                                                type="text" 
-                                                value={editTitle}
-                                                onChange={(e) => setEditTitle(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-                                              />
-                                            </div>
-
-                                            <div>
-                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label>
-                                              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm text-slate-900">
-                                                <select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none font-medium">
-                                                  {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                                                </select>
-                                                <span>:</span>
-                                                <select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium">
-                                                  {minutes.map(m => <option key={m} value={m}>{m}</option>)}
-                                                </select>
-                                              </div>
-                                            </div>
-
-                                            <div>
-                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label>
-                                              <select 
-                                                value={editCategory}
-                                                onChange={(e) => setEditCategory(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-                                              >
-                                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                              </select>
-                                            </div>
-
-                                            <div className="md:col-span-2">
-                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label>
-                                              <input 
-                                                type="text" 
-                                                value={editLocation}
-                                                onChange={(e) => setEditLocation(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-                                              />
-                                            </div>
-
-                                            <div className="md:col-span-3">
-                                              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label>
-                                              <textarea 
-                                                value={editDetails}
-                                                onChange={(e) => setEditDetails(e.target.value)}
-                                                rows={2}
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
-                                              />
-                                            </div>
-                                          </div>
-
-                                          <div className="flex justify-end gap-2 pt-2">
-                                            <button 
-                                              onClick={(e) => handleSaveEdit(item.id, e)}
-                                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
-                                            >
-                                              <Save className="w-3.5 h-3.5" /> Save Changes
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        /* VIEW MODE (Side-by-Side Grid) */
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                          {/* Left Column: Long Description / Details */}
-                                          <div className="md:col-span-2 space-y-2">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                              <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                              Activity Details & Notes
-                                            </div>
-                                            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-4 rounded-xl border border-slate-200">
-                                              {item.details && item.details.trim() ? item.details : "No additional notes or description provided for this activity."}
-                                            </p>
-                                          </div>
-
-                                          {/* Right Column: Clickable Map Link Card */}
-                                          <div className="space-y-2 flex flex-col">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                              <MapPin className="w-3.5 h-3.5 text-teal-500" />
-                                              Location & Map
-                                            </div>
-                                            <a 
-                                              href={mapsSearchUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm"
-                                            >
-                                              <div>
-                                                <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">
-                                                  {item.location}
-                                                </p>
-                                                <p className="text-[11px] text-slate-400">Click to open directions and venue details</p>
-                                              </div>
-                                              <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline">
-                                                <span>Open in Google Maps</span>
-                                                <ExternalLink className="w-3.5 h-3.5" />
-                                              </div>
-                                            </a>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                </div>
-                              )}
-                            </Draggable>
-                          );
-                        })}
+                                )}
+                              </Draggable>
+                            );
+                          })
+                        )}
                         {provided.placeholder}
                       </div>
                     )}
