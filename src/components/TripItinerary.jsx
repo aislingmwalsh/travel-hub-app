@@ -43,7 +43,7 @@ function getTripDateRange(startDateStr, endDateStr) {
   return dates;
 }
 
-export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR' }) {
+export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest' }) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   
@@ -57,6 +57,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [details, setDetails] = useState('');
   const [cost, setCost] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isGuest = userRole?.toLowerCase() === 'guest';
 
   // Effective Dates
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
@@ -161,6 +163,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const handleAddItem = async (e) => {
     e.preventDefault();
+    if (isGuest) return; // Prevent guests from adding
     if (!title.trim() || !selectedDate || !location.trim()) return;
 
     setLoading(true);
@@ -192,6 +195,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const handleDeleteItem = async (itemId, e) => {
     e.stopPropagation();
+    if (isGuest) return;
     try {
       await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
       setItineraryItems(prev => prev.filter(i => i.id !== itemId));
@@ -202,6 +206,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const handleStartEdit = (item, e) => {
     e.stopPropagation();
+    if (isGuest) return;
     setEditingCardId(item.id);
     setEditTitle(item.title);
     setEditDate(item.date || effectiveStartDate);
@@ -216,6 +221,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const handleSaveEdit = async (itemId, e) => {
     e.stopPropagation();
+    if (isGuest) return;
     if (!editTitle.trim() || !editDate) return;
 
     const updatedFields = {
@@ -238,6 +244,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   };
 
   const handleDragEnd = async (result) => {
+    if (isGuest) return;
     const { destination, source, draggableId } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
@@ -275,29 +282,33 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
           <p className="text-xs text-slate-500 mt-0.5">Estimated Total Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
         </div>
-        <button 
-          onClick={() => setIsSettingsOpen(true)}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
-        >
-          <Settings className="w-4 h-4" /> Manage Activity Types
-        </button>
+        {!isGuest && (
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
+          >
+            <Settings className="w-4 h-4" /> Manage Activity Types
+          </button>
+        )}
       </div>
 
-      {/* Creation Form Sub-component */}
-      <ItineraryForm 
-        title={title} setTitle={setTitle}
-        selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-        effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-        selectedHour={selectedHour} setSelectedHour={setSelectedHour}
-        selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
-        category={category} setCategory={setCategory} sortedCategories={sortedCategories}
-        cost={cost} setCost={setCost} currency={currency}
-        location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
-        showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
-        details={details} setDetails={setDetails}
-        loading={loading} dropdownRef={dropdownRef}
-        onAddItem={handleAddItem}
-      />
+      {/* Creation Form Sub-component (Hidden for Guests) */}
+      {!isGuest && (
+        <ItineraryForm 
+          title={title} setTitle={setTitle}
+          selectedDate={selectedDate} setSelectedDate={setSelectedDate}
+          effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+          selectedHour={selectedHour} setSelectedHour={setSelectedHour}
+          selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
+          category={category} setCategory={setCategory} sortedCategories={sortedCategories}
+          cost={cost} setCost={setCost} currency={currency}
+          location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
+          showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
+          details={details} setDetails={setDetails}
+          loading={loading} dropdownRef={dropdownRef}
+          onAddItem={handleAddItem}
+        />
+      )}
 
       {/* Itinerary Feed with Daily Totals */}
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -315,16 +326,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
                   </div>
                   <div className="flex items-center gap-3">
-                    {dayTotal > 0 && (
-                      <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">
-                        Daily Total: {currency} {dayTotal.toFixed(2)}
-                      </span>
-                    )}
+                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
                     {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>
 
-                <Droppable droppableId={dateStr}>
+                <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
                   {(provided, snapshot) => (
                     <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[75px] transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300 rounded-b-2xl' : ''}`}>
                       {items.length === 0 ? (
@@ -351,6 +358,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                             editCost={editCost} setEditCost={setEditCost}
                             editLocation={editLocation} setEditLocation={setEditLocation}
                             editDetails={editDetails} setEditDetails={setEditDetails}
+                            isGuest={isGuest}
                           />
                         ))
                       )}

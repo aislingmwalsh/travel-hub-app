@@ -19,29 +19,16 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
     e.preventDefault();
     try {
       const tripRef = doc(db, "trips", tripId);
-      const updatedFields = {
-        title,
-        destination,
-        startDate,
-        endDate,
-        status,
-        currency
-      };
-      
+      const updatedFields = { title, destination, startDate, endDate, status, currency };
       await updateDoc(tripRef, updatedFields);
-      
-      // Instantly notify parent component of the new dates/details
-      if (onTripUpdate) {
-        onTripUpdate(updatedFields);
-      }
-      
+      if (onTripUpdate) onTripUpdate(updatedFields);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating trip details:", error);
     }
   };
 
-  const isOwner = userRole === 'Owner';
+  const isOwner = userRole?.toLowerCase() === 'owner';
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 mb-8">
@@ -67,21 +54,22 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Manage Travelers Button */}
-            <button 
-              onClick={onOpenMembersModal}
-              className="flex items-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition"
-            >
-              <Users className="w-4 h-4" /> Manage Travelers
-            </button>
-
+            {/* Only Owners can see management buttons */}
             {isOwner && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition"
-              >
-                <Edit3 className="w-4 h-4" /> Edit Trip Details
-              </button>
+              <>
+                <button 
+                  onClick={onOpenMembersModal}
+                  className="flex items-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition cursor-pointer"
+                >
+                  <Users className="w-4 h-4" /> Manage Travelers
+                </button>
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition cursor-pointer"
+                >
+                  <Edit3 className="w-4 h-4" /> Edit Trip Details
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -89,7 +77,7 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
         <form onSubmit={handleSave} className="space-y-4">
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-bold text-slate-900 text-lg">Edit Trip Information</h3>
-            <button type="button" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 p-1">
+            <button type="button" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -105,7 +93,7 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm cursor-pointer">
                 {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -119,7 +107,7 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Currency</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm cursor-pointer">
                 <option value="EUR">EUR (€)</option>
                 <option value="USD">USD ($)</option>
                 <option value="GBP">GBP (£)</option>
@@ -129,7 +117,7 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm">
+            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer">
               <Save className="w-4 h-4" /> Save Changes
             </button>
           </div>

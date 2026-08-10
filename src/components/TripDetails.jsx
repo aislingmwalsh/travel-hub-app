@@ -1,6 +1,6 @@
-// src/components/TripDetails.jsx (or src/pages/TripDetails.jsx)
+// src/components/TripDetails.jsx
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import TripHeader from './TripHeader';
@@ -9,7 +9,6 @@ import TripMembersModal from './TripMembersModal';
 
 export default function TripDetails({ tripId, onBack }) {
   const [tripData, setTripData] = useState(null);
-  const [userRole, setUserRole] = useState('Owner');
   const [loading, setLoading] = useState(true);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
@@ -31,10 +30,8 @@ export default function TripDetails({ tripId, onBack }) {
     fetchTripDetails();
   }, [tripId]);
 
-  // Handler to instantly update local state when edited in TripHeader
-  const handleTripUpdate = (updatedFields) => {
-    setTripData(prev => ({ ...prev, ...updatedFields }));
-  };
+  // Safely check current user role from members object
+  const currentUserRole = tripData?.members?.[auth.currentUser?.uid] || 'Guest';
 
   if (loading) {
     return (
@@ -48,7 +45,7 @@ export default function TripDetails({ tripId, onBack }) {
     return (
       <div className="max-w-4xl mx-auto p-8 text-center">
         <h2 className="text-xl font-bold text-slate-800 mb-2">Trip not found</h2>
-        <button onClick={onBack} className="text-blue-600 font-bold text-sm underline">Go Back</button>
+        <button onClick={onBack} className="text-blue-600 font-bold text-sm underline cursor-pointer">Go Back</button>
       </div>
     );
   }
@@ -61,20 +58,22 @@ export default function TripDetails({ tripId, onBack }) {
         </button>
       </div>
 
-      {/* Pass onTripUpdate callback */}
+      {/* Header with Role Permissions Passed */}
       <TripHeader 
         tripId={tripId} 
         tripData={tripData} 
-        userRole={userRole} 
+        userRole={currentUserRole} 
         onOpenMembersModal={() => setIsMembersModalOpen(true)}
-        onTripUpdate={handleTripUpdate}
+        onTripUpdate={(updatedFields) => setTripData(prev => ({ ...prev, ...updatedFields }))}
       />
 
+      {/* Itinerary with Role Permissions Passed */}
       <TripItinerary 
         tripId={tripId} 
         tripStartDate={tripData.startDate} 
         tripEndDate={tripData.endDate} 
         currency={tripData.currency || 'EUR'}
+        userRole={currentUserRole} 
       />
 
       <TripMembersModal 
