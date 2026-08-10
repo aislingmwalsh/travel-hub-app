@@ -1,28 +1,34 @@
-// src/components/TripDetails.jsx
+// src/pages/TripDetail.jsx (or src/components/TripDetail.jsx)
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import TripItinerary from './TripItinerary';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import TripHeader from '../components/TripHeader';
+import TripItinerary from '../components/TripItinerary';
+import TripMembersModal from '../components/TripMembersModal';
 
-export default function TripDetails({ tripId, onBack }) {
-  const [trip, setTrip] = useState(null);
+export default function TripDetail() {
+  const { tripId } = useParams(); // Or receive tripId as a prop if your routing differs
+  const [tripData, setTripData] = useState(null);
+  const [userRole, setUserRole] = useState('Owner'); // Default or fetched from members subcollection
   const [loading, setLoading] = useState(true);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
-  // Fetch the specific trip's details using its ID
+  // Fetch trip document details from Firestore
   useEffect(() => {
     async function fetchTripDetails() {
       if (!tripId) return;
       try {
-        const docRef = doc(db, "trips", tripId);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          setTrip({ id: docSnap.id, ...docSnap.data() });
+        const tripRef = doc(db, "trips", tripId);
+        const tripSnap = await getDoc(tripRef);
+        if (tripSnap.exists()) {
+          setTripData(tripSnap.data());
         } else {
-          console.log("No such trip found!");
+          console.error("Trip not found");
         }
       } catch (error) {
-        console.error("Error fetching trip details:", error);
+        console.error("Error fetching trip:", error);
       } finally {
         setLoading(false);
       }
@@ -31,47 +37,51 @@ export default function TripDetails({ tripId, onBack }) {
   }, [tripId]);
 
   if (loading) {
-    return <div className="p-6 text-center text-gray-500">Loading trip details...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
   }
 
-  if (!trip) {
-    return <div className="p-6 text-center text-red-500">Trip not found.</div>;
+  if (!tripData) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center">
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Trip not found</h2>
+        <p className="text-slate-500 text-sm">The trip you are looking for does not exist or has been removed.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Back Button */}
-      <button 
-        onClick={onBack}
-        className="mb-6 text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-      >
-        ← Back to Dashboard
-      </button>
-
-      {/* Trip Header Banner */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md uppercase tracking-wider">
-          {trip.status || 'Planning'}
-        </span>
-        <h1 className="text-3xl font-bold text-gray-900 mt-2">{trip.title}</h1>
-        <p className="text-sm text-gray-500 mt-1">📍 {trip.location}</p>
-        
-        <div className="mt-4 flex gap-6 text-sm text-gray-600 border-t border-gray-100 pt-4">
-          <div>
-            <span className="font-semibold text-gray-800">Start Date:</span> {trip.startDate}
-          </div>
-          <div>
-            <span className="font-semibold text-gray-800">End Date:</span> {trip.endDate}
-          </div>
-        </div>
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
+      {/* Back / Navigation link if needed */}
+      <div className="mb-6">
+        <a href="/dashboard" className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition">
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        </a>
       </div>
 
-      {/* Itinerary Section (Where our date-shifting schedule lives) */}
-      
+      {/* Trip Header Component (Title, Destination, Dates, Status, Currency, Edit & Manage Buttons) */}
+      <TripHeader 
+        tripId={tripId} 
+        tripData={tripData} 
+        userRole={userRole} 
+        onOpenMembersModal={() => setIsMembersModalOpen(true)} 
+      />
+
+      {/* Itinerary Component (Dates Feed, Creation Form, Drag & Drop, Map Links, Inline Editing) */}
       <TripItinerary 
-        tripId={trip.id} 
-        tripStartDate={trip.startDate} // Ensure this is a 'YYYY-MM-DD' string
-        tripEndDate={trip.endDate}     // Ensure this is a 'YYYY-MM-DD' string
+        tripId={tripId} 
+        tripStartDate={tripData.startDate} 
+        tripEndDate={tripData.endDate} 
+      />
+
+      {/* Members Management Modal Component (Invite Guests/Collaborators/Owners) */}
+      <TripMembersModal 
+        tripId={tripId} 
+        isOpen={isMembersModalOpen} 
+        onClose={() => setIsMembersModalOpen(false)} 
       />
     </div>
   );
