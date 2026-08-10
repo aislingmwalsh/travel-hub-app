@@ -209,20 +209,21 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     }
   };
 
-  const handleStartEdit = (item, e) => {
-    e.stopPropagation();
-    if (isGuest) return;
-    setEditingCardId(item.id);
-    setEditTitle(item.title);
-    setEditDate(item.date || effectiveStartDate);
-    const [h, m] = (item.time || '09:00').split(':');
-    setEditHour(h || '09');
-    setEditMinute(m || '00');
-    setEditCategory(item.category || 'Tour');
-    setEditLocation(item.location || '');
-    setEditDetails(item.details || '');
-    setEditCost(item.cost ? item.cost.toString() : '');
-  };
+const handleStartEdit = (item, e) => {
+  e.stopPropagation();
+  if (isGuest) return;
+  setEditingCardId(item.id);
+  setExpandedCardId(item.id); // 👈 THIS ENSURES THE CARD EXPANDS AUTOMATICALLY WHEN EDITING
+  setEditTitle(item.title);
+  setEditDate(item.date || effectiveStartDate);
+  const [h, m] = (item.time || '09:00').split(':');
+  setEditHour(h || '09');
+  setEditMinute(m || '00');
+  setEditCategory(item.category || 'Tour');
+  setEditLocation(item.location || '');
+  setEditDetails(item.details || '');
+  setEditCost(item.cost ? item.cost.toString() : '');
+};
 
   const handleSaveEdit = async (itemId, e) => {
     e.stopPropagation();
