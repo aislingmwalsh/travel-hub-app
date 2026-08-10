@@ -13,7 +13,7 @@ export default function DailyMapView({ activities, currency, destination }) {
 
     const geocoder = new window.google.maps.Geocoder();
 
-    // 1. Geocode the main destination to establish center coordinates
+    // 1. Geocode main destination for default center
     geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
       let defaultCenter = { lat: 41.9028, lng: 12.4964 }; // Rome fallback
 
@@ -21,10 +21,10 @@ export default function DailyMapView({ activities, currency, destination }) {
         defaultCenter = destResults[0].geometry.location;
       }
 
-      // Initialize map instance
+      // Initialize map instance if not already created
       if (!mapInstanceRef.current && mapRef.current) {
         mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-          zoom: 13,
+          zoom: 14,
           center: defaultCenter,
           styles: [
             { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
@@ -43,7 +43,7 @@ export default function DailyMapView({ activities, currency, destination }) {
 
       const bounds = new window.google.maps.LatLngBounds();
 
-      // 2. Geocode each activity location sequentially
+      // 2. Geocode each activity
       validActivities.forEach((activity, index) => {
         geocoder.geocode({ address: activity.location }, (results, status) => {
           if (status === 'OK' && results[0]) {
@@ -76,9 +76,14 @@ export default function DailyMapView({ activities, currency, destination }) {
             });
 
             markersRef.current.push(marker);
-            map.fitBounds(bounds);
-          } else {
-            console.warn(`Geocode was not successful for location: "${activity.location}" due to status: ${status}`);
+
+            // FIX: Handle zoom differently if there's only 1 activity vs multiple
+            if (validActivities.length === 1) {
+              map.setCenter(position);
+              map.setZoom(14); // Perfect street/neighborhood level view
+            } else {
+              map.fitBounds(bounds);
+            }
           }
         });
       });
