@@ -405,7 +405,7 @@ const handleDragEnd = async (result) => {
     </div>
   );
 })}
-          })}
+          
         </div>
       </DragDropContext>
 
