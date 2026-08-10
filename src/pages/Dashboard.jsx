@@ -56,7 +56,6 @@ export default function Dashboard({ user, onSelectTrip }) {
         ...document.data()
       }));
       
-      liveTrips.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setTrips(liveTrips);
       setLoadingTrips(false);
     });
@@ -117,9 +116,27 @@ export default function Dashboard({ user, onSelectTrip }) {
     return trip.dates || 'Dates TBC';
   };
 
+  // Filtering & Sorting Logic
   const filteredTrips = trips.filter(trip => {
-    if (statusFilter === 'All') return true;
-    return (trip.status || 'Planning') === statusFilter;
+    const status = trip.status || 'Planning';
+    if (statusFilter === 'All') {
+      return status !== 'Completed'; // Hide completed trips by default in "All" view
+    }
+    return status === statusFilter;
+  });
+
+  filteredTrips.sort((a, b) => {
+    if (statusFilter === 'Completed') {
+      // Completed trips sorted by most recent end date first
+      const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
+      const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
+      return dateB - dateA;
+    } else {
+      // Upcoming/Active trips sorted by soonest start date first
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return dateA - dateB;
+    }
   });
 
   return (
