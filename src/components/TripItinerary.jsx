@@ -245,20 +245,31 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     }
   };
 
-  const handleDragEnd = async (result) => {
-    if (isGuest) return;
-    const { destination, source, draggableId } = result;
-    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
+const handleDragEnd = async (result) => {
+  if (isGuest) return;
+  const { destination, source, draggableId } = result;
+  
+  // If dropped outside a valid droppable area or in the exact same spot, do nothing
+  if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
-    const newDate = destination.droppableId;
-    setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
+  const newDate = destination.droppableId;
 
-    try {
-      await updateDoc(doc(db, "trips", tripId, "itinerary", draggableId), { date: newDate });
-    } catch (err) {
-      console.error("Error dragging item:", err);
-    }
-  };
+  // Optimistically update local state immediately so the UI feels instant
+  setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
+
+  try {
+    // Ensure the document path correctly points to the trip's itinerary subcollection
+    const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
+    await updateDoc(itemRef, { date: newDate });
+  } catch (err) {
+    console.error("Error updating item date in Firestore:", err);
+    alert("Failed to save schedule change. Please check your permissions or network connection.");
+    
+    // Revert local state if Firestore write fails
+    const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
+    setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  }
+};
 
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
   const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
