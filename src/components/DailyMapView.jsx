@@ -10,90 +10,93 @@ export default function DailyMapView({ activities, currency, destination }) {
 
   useEffect(() => {
     if (!isMapOpen) return;
-    const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
 
-    if (!window.google?.maps) return;
+    // Use requestAnimationFrame to ensure the DOM node is painted and has dimensions
+    const timer = requestAnimationFrame(() => {
+      const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
 
-    const geocoder = new window.google.maps.Geocoder();
+      if (!window.google?.maps || !mapRef.current) return;
 
-    geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
-      let defaultCenter = { lat: 41.9028, lng: 12.4964 };
+      const geocoder = new window.google.maps.Geocoder();
 
-      if (destStatus === 'OK' && destResults[0]) {
-        defaultCenter = destResults[0].geometry.location;
-      }
+      geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
+        let defaultCenter = { lat: 41.9028, lng: 12.4964 };
 
-      // Initialize map instance once
-      if (!mapInstanceRef.current && mapRef.current) {
-        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-          zoom: 14,
-          center: defaultCenter,
-          styles: [
-            { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
-          ]
-        });
-      }
+        if (destStatus === 'OK' && destResults[0]) {
+          defaultCenter = destResults[0].geometry.location;
+        }
 
-      const map = mapInstanceRef.current;
-      if (map) {
-        // FIX: Force Google Maps to recalculate dimensions after expansion repaint
-        setTimeout(() => {
+        // Initialize map instance if it doesn't exist yet
+        if (!mapInstanceRef.current && mapRef.current) {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+            zoom: 14,
+            center: defaultCenter,
+            styles: [
+              { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+            ]
+          });
+        }
+
+        const map = mapInstanceRef.current;
+        if (map) {
           window.google.maps.event.trigger(map, 'resize');
           map.setCenter(defaultCenter);
-        }, 100);
-      }
+        }
 
-      if (validActivities.length === 0) return;
+        if (validActivities.length === 0) return;
 
-      // Clear old markers
-      markersRef.current.forEach(marker => marker.setMap(null));
-      markersRef.current = [];
+        // Clear old markers
+        markersRef.current.forEach(marker => marker.setMap(null));
+        markersRef.current = [];
 
-      const bounds = new window.google.maps.LatLngBounds();
+        const bounds = new window.google.maps.LatLngBounds();
 
-      validActivities.forEach((activity, index) => {
-        geocoder.geocode({ address: activity.location }, (results, status) => {
-          if (status === 'OK' && results[0]) {
-            const position = results[0].geometry.location;
-            bounds.extend(position);
+        validActivities.forEach((activity, index) => {
+          geocoder.geocode({ address: activity.location }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+              const position = results[0].geometry.location;
+              bounds.extend(position);
 
-            const marker = new window.google.maps.Marker({
-              map: map,
-              position: position,
-              label: {
-                text: String(index + 1),
-                color: '#ffffff',
-                fontWeight: 'bold'
-              },
-              title: activity.title
-            });
+              const marker = new window.google.maps.Marker({
+                map: map,
+                position: position,
+                label: {
+                  text: String(index + 1),
+                  color: '#ffffff',
+                  fontWeight: 'bold'
+                },
+                title: activity.title
+              });
 
-            const infoWindow = new window.google.maps.InfoWindow({
-              content: `
-                <div style="font-family: sans-serif; padding: 6px;">
-                  <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
-                  <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
-                  ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
-                </div>
-              `
-            });
+              const infoWindow = new window.google.maps.InfoWindow({
+                content: `
+                  <div style="font-family: sans-serif; padding: 6px;">
+                    <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
+                    <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
+                    ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
+                  </div>
+                `
+              });
 
-            marker.addListener('click', () => {
-              infoWindow.open(map, marker);
-            });
+              marker.addListener('click', () => {
+                infoWindow.open(map, marker);
+              });
 
-            markersRef.current.push(marker);
+              markersRef.current.push(marker);
 
-            if (validActivities.length === 1) {
-              map.setCenter(position);
-              map.setZoom(14);
-            } else {
-              map.fitBounds(bounds);
+              if (validActivities.length === 1) {
+                map.setCenter(position);
+                map.setZoom(14);
+              } else {
+                map.fitBounds(bounds);
+              }
             }
-          }
+          });
         });
       });
     });
+
+    return () => cancelAnimationFrame(timer);
   }, [activities, currency, destination, isMapOpen]);
 
   if (!activities || activities.filter(a => a.location).length === 0) {
