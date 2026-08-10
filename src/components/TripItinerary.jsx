@@ -1,7 +1,7 @@
 // src/components/TripItinerary.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { Calendar, Settings } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
@@ -177,6 +177,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         location: location.trim(),
         details: details.trim(),
         cost: cost ? parseFloat(cost) : 0,
+        highlighted: false,
         createdAt: new Date()
       };
       const docRef = await addDoc(collection(db, "trips", tripId, "itinerary"), newItem);
@@ -245,31 +246,24 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     }
   };
 
-const handleDragEnd = async (result) => {
-  if (isGuest) return;
-  const { destination, source, draggableId } = result;
-  
-  // If dropped outside a valid droppable area or in the exact same spot, do nothing
-  if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
+  const handleDragEnd = async (result) => {
+    if (isGuest) return;
+    const { destination, source, draggableId } = result;
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
-  const newDate = destination.droppableId;
+    const newDate = destination.droppableId;
+    setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
 
-  // Optimistically update local state immediately so the UI feels instant
-  setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
-
-  try {
-    // Ensure the document path correctly points to the trip's itinerary subcollection
-    const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
-    await updateDoc(itemRef, { date: newDate });
-  } catch (err) {
-    console.error("Error updating item date in Firestore:", err);
-    alert("Failed to save schedule change. Please check your permissions or network connection.");
-    
-    // Revert local state if Firestore write fails
-    const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
-    setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  }
-};
+    try {
+      const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
+      await updateDoc(itemRef, { date: newDate });
+    } catch (err) {
+      console.error("Error updating item date in Firestore:", err);
+      alert("Failed to save schedule change. Please check your permissions or network connection.");
+      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
+      setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+  };
 
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
   const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
@@ -323,100 +317,94 @@ const handleDragEnd = async (result) => {
         />
       )}
 
-      {/* Itinerary Feed with Daily Totals */}
+      {/* Itinerary Feed with Daily Totals & Side-by-Side Map Grid */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           {sortedDates.map(dateStr => {
-  const items = groupedItems[dateStr] || [];
-  const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-  const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+            const items = groupedItems[dateStr] || [];
+            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+            const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
-  return (
-    <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40 mb-6">
-      <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Calendar className="w-4 h-4 text-blue-600" />
-          <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
-        </div>
-        <div className="flex items-center gap-3">
-          {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
-          {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
-        </div>
-      </div>
-
-      {/* 👇 SIDE-BY-SIDE GRID LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:divide-x divide-slate-200">
-        
-        {/* Left Column: Activity List & Droppable Area */}
-        <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
-          {(provided, snapshot) => (
-            <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[150px] transition-colors flex flex-col justify-start ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
-              {items.length === 0 ? (
-                <div className="h-24 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 m-2">
-                  Drop activities here
-                </div>
-              ) : (
-                items.map((item, index) => (
-                  /* 👇 WRAP IT IN A DIV THAT CHECKS IF IT'S HIGHLIGHTED */
-                  <div key={item.id} className={`${item.highlighted ? 'col-span-full' : ''}`}>
-                    <ItineraryCard 
-                      item={item} index={index} currency={currency}
-                      isExpanded={expandedCardId === item.id}
-                      onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                      isEditing={editingCardId === item.id}
-                      onStartEdit={(e) => handleStartEdit(item, e)}
-                      onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                      onCancelEdit={() => setEditingCardId(null)}
-                      onDelete={(e) => handleDeleteItem(item.id, e)}
-                      onToggleHighlight={async (itemId, newHighlightState) => {
-                        try {
-                          await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                          setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                        } catch (err) {
-                          console.error("Error updating highlight status:", err);
-                          alert("Failed to update highlight status.");
-                        }
-                      }}
-                      editTitle={editTitle} setEditTitle={setEditTitle}
-                      editDate={editDate} setEditDate={setEditDate} 
-                      effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                      editHour={editHour} setEditHour={setEditHour} 
-                      editMinute={editMinute} setEditMinute={setEditMinute} 
-                      hours={hours} minutes={minutes}
-                      editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                      editCost={editCost} setEditCost={setEditCost}
-                      editLocation={editLocation} setEditLocation={setEditLocation}
-                      editDetails={editDetails} setEditDetails={setEditDetails}
-                      isGuest={isGuest}
-                    />
+            return (
+              <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
+                <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
                   </div>
-                ))
-              )}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
+                  <div className="flex items-center gap-3">
+                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
+                    {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                  </div>
+                </div>
 
-        {/* Right Column: Daily Map View */}
-        <div className="p-4 bg-white flex flex-col justify-center border-t lg:border-t-0 border-slate-200">
-          {items.filter(a => a.location).length > 0 ? (
-            <DailyMapView 
-              activities={items} 
-              currency={currency} 
-              destination={tripDestination} 
-            />
-          ) : (
-            <div className="h-48 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-xs text-slate-400 text-center p-4">
-              Add a location to your activities to preview the daily route map.
-            </div>
-          )}
-        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:divide-x divide-slate-200">
+                  <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
+                    {(provided, snapshot) => (
+                      <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[150px] transition-colors grid grid-cols-1 lg:grid-cols-2 gap-3 content-start ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
+                        {items.length === 0 ? (
+                          <div className="col-span-full h-24 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 m-2">
+                            Drop activities here
+                          </div>
+                        ) : (
+                          items.map((item, index) => (
+                            <div key={item.id} className={`${item.highlighted ? 'col-span-full' : 'col-span-full lg:col-span-1'}`}>
+                              <ItineraryCard 
+                                item={item} 
+                                index={index} 
+                                currency={currency}
+                                isExpanded={expandedCardId === item.id}
+                                onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                                isEditing={editingCardId === item.id}
+                                onStartEdit={(e) => handleStartEdit(item, e)}
+                                onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                                onCancelEdit={() => setEditingCardId(null)}
+                                onDelete={(e) => handleDeleteItem(item.id, e)}
+                                onToggleHighlight={async (itemId, newHighlightState) => {
+                                  try {
+                                    await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                    setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                                  } catch (err) {
+                                    console.error("Error updating highlight status:", err);
+                                  }
+                                }}
+                                editTitle={editTitle} setEditTitle={setEditTitle}
+                                editDate={editDate} setEditDate={setEditDate} 
+                                effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                                editHour={editHour} setEditHour={setEditHour} 
+                                editMinute={editMinute} setEditMinute={setEditMinute} 
+                                hours={hours} minutes={minutes}
+                                editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                                editCost={editCost} setEditCost={setEditCost}
+                                editLocation={editLocation} setEditLocation={setEditLocation}
+                                editDetails={editDetails} setEditDetails={setEditDetails}
+                                isGuest={isGuest}
+                              />
+                            </div>
+                          ))
+                        )}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
 
-      </div>
-    </div>
-  );
-})}
-          
+                  <div className="p-4 bg-white flex flex-col justify-center border-t lg:border-t-0 border-slate-200">
+                    {items.filter(a => a.location).length > 0 ? (
+                      <DailyMapView 
+                        activities={items} 
+                        currency={currency} 
+                        destination={tripDestination} 
+                      />
+                    ) : (
+                      <div className="h-48 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-xs text-slate-400 text-center p-4">
+                        Add a location to your activities to preview the daily route map.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </DragDropContext>
 

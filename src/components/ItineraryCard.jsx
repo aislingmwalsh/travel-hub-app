@@ -46,26 +46,37 @@ export default function ItineraryCard({
           } ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
         >
           <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-start sm:items-center gap-3">
-              <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500 cursor-grab p-1">
+            
+            {/* Left Side: Drag Handle & Main Content */}
+            <div className="flex items-start gap-3 w-full sm:w-auto">
+              <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500 cursor-grab p-1 mt-0.5">
                 <GripVertical className="w-4 h-4" />
               </div>
-              <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
-                <Clock className="w-3.5 h-3.5 text-blue-600" />{item.time}
-              </div>
-              <div>
+              
+              <div className="flex-grow">
+                {/* Title and Inline Time */}
                 <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                    <Clock className="w-3 h-3 text-blue-600" />{item.time}
+                  </span>
                   <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
                   {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
                   {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                 </div>
-                {item.location && <div className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" /><span>{item.location}</span></div>}
+
+                {/* Location */}
+                {item.location && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                    <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                    <span>{item.location}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 self-end sm:self-center">
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
               {!isEditing && !isGuest && (
                 <button 
                   onClick={(e) => { 
@@ -97,6 +108,7 @@ export default function ItineraryCard({
             </div>
           </div>
 
+          {/* Expanded Details View */}
           {isExpanded && (
             <div onClick={(e) => e.stopPropagation()} className="bg-slate-50 border-t border-slate-100 p-5">
               {isEditing ? (
