@@ -5,6 +5,7 @@ import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc,
 import { Calendar, Settings } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
+import DailyMapView from './DailyMapView';
 import ItineraryForm from './ItineraryForm';
 import ItineraryCard from './ItineraryCard';
 import CategoryModal from './CategoryModal';
