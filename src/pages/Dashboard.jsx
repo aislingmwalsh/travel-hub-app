@@ -4,7 +4,6 @@ import { auth, db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, arrayUnion, or } from 'firebase/firestore';
 import { Plane, Plus, MapPin, Calendar, Users, LogOut, X, UserPlus, Mail, ChevronRight } from 'lucide-react';
 
-// Helper to map starting month to a seasonal top-banner accent gradient
 function getSeasonalAccent(startDateStr) {
   if (!startDateStr) return 'from-slate-400 to-slate-500';
   const month = new Date(startDateStr).getMonth() + 1;
@@ -15,7 +14,6 @@ function getSeasonalAccent(startDateStr) {
   return 'from-sky-400 to-indigo-500'; // Winter
 }
 
-// Status Badge Styling Helper
 function getStatusBadgeStyle(status) {
   switch (status) {
     case 'Booked': return 'bg-emerald-100 text-emerald-800 border-emerald-300';
@@ -29,7 +27,8 @@ function getStatusBadgeStyle(status) {
 export default function Dashboard({ user, onSelectTrip }) {
   const [isNewTripModalOpen, setIsNewTripModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newTrip, setNewTrip] = useState({ title: '', location: '', startDate: '', endDate: '' });
+  // Standardized field name: destination instead of location
+  const [newTrip, setNewTrip] = useState({ title: '', destination: '', startDate: '', endDate: '' });
   
   const [activeInviteTrip, setActiveInviteTrip] = useState(null);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -69,7 +68,7 @@ export default function Dashboard({ user, onSelectTrip }) {
     try {
       await addDoc(collection(db, 'trips'), {
         title: newTrip.title,
-        location: newTrip.location,
+        destination: newTrip.destination, // Saved as destination in Firestore
         startDate: newTrip.startDate,
         endDate: newTrip.endDate,
         members: { [user.uid]: 'owner' },
@@ -78,7 +77,7 @@ export default function Dashboard({ user, onSelectTrip }) {
         createdAt: new Date()
       });
       setIsNewTripModalOpen(false);
-      setNewTrip({ title: '', location: '', startDate: '', endDate: '' });
+      setNewTrip({ title: '', destination: '', startDate: '', endDate: '' });
     } catch (error) {
       console.error("Error creating trip:", error);
       alert("Failed to create trip.");
@@ -127,15 +126,13 @@ export default function Dashboard({ user, onSelectTrip }) {
 
   filteredTrips.sort((a, b) => {
     if (statusFilter === 'Completed') {
-      // Completed trips sorted by most recent end date first
       const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
       const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
-      return dateB - dateA;
+      return dateB - dateA; // Most recent end date first
     } else {
-      // Upcoming/Active trips sorted by soonest start date first
       const dateA = a.startDate ? new Date(a.startDate).getTime() : Number.MAX_SAFE_INTEGER;
       const dateB = b.startDate ? new Date(b.startDate).getTime() : Number.MAX_SAFE_INTEGER;
-      return dateA - dateB;
+      return dateA - dateB; // Soonest start date first
     }
   });
 
@@ -160,7 +157,7 @@ export default function Dashboard({ user, onSelectTrip }) {
             <div className="w-px h-4 bg-slate-200 hidden md:block"></div>
             <button 
               onClick={() => auth.signOut()}
-              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors"
+              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline-block">Sign Out</span>
@@ -176,7 +173,7 @@ export default function Dashboard({ user, onSelectTrip }) {
           </div>
           <button 
             onClick={() => setIsNewTripModalOpen(true)}
-            className="group bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20 active:scale-95"
+            className="group bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full transition-all flex items-center gap-2 text-sm shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
             New Trip
@@ -215,7 +212,7 @@ export default function Dashboard({ user, onSelectTrip }) {
             <h3 className="text-xl font-bold text-slate-900 mb-2">No itineraries found</h3>
             <p className="text-slate-500 mb-8 max-w-sm">No trips match the selected status filter.</p>
             {statusFilter !== 'All' && (
-              <button onClick={() => setStatusFilter('All')} className="text-blue-600 font-bold hover:underline text-sm">
+              <button onClick={() => setStatusFilter('All')} className="text-blue-600 font-bold hover:underline text-sm cursor-pointer">
                 Clear filter
               </button>
             )}
@@ -249,7 +246,7 @@ export default function Dashboard({ user, onSelectTrip }) {
                     <div className="space-y-4 mt-auto">
                       <div className="flex items-start gap-3 text-sm text-slate-600">
                         <MapPin className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
-                        <span className="line-clamp-2">{trip.location}</span>
+                        <span className="line-clamp-2">{trip.destination}</span>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-slate-600">
                         <Calendar className="w-4 h-4 text-teal-500 shrink-0" />
@@ -274,7 +271,7 @@ export default function Dashboard({ user, onSelectTrip }) {
                           {trip.members?.[user.uid] === 'owner' && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); setActiveInviteTrip(trip); }}
-                              className="bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-blue-600 p-2 rounded-full transition-colors border border-slate-200"
+                              className="bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-blue-600 p-2 rounded-full transition-colors border border-slate-200 cursor-pointer"
                               title="Invite a traveller"
                             >
                               <UserPlus className="w-4 h-4" />
@@ -297,7 +294,7 @@ export default function Dashboard({ user, onSelectTrip }) {
         {isNewTripModalOpen && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-8 relative shadow-2xl">
-              <button onClick={() => setIsNewTripModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+              <button onClick={() => setIsNewTripModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
               
@@ -309,8 +306,9 @@ export default function Dashboard({ user, onSelectTrip }) {
                   <input required type="text" placeholder="e.g. Australia 2027" value={newTrip.title} onChange={(e) => setNewTrip({...newTrip, title: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Location</label>
-                  <input required type="text" placeholder="e.g. Melbourne & Sydney" value={newTrip.location} onChange={(e) => setNewTrip({...newTrip, location: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-400" />
+                  {/* Renamed from Location to Destination */}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Destination</label>
+                  <input required type="text" placeholder="e.g. Melbourne & Sydney" value={newTrip.destination} onChange={(e) => setNewTrip({...newTrip, destination: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -322,7 +320,7 @@ export default function Dashboard({ user, onSelectTrip }) {
                     <input required type="date" value={newTrip.endDate} onChange={(e) => setNewTrip({...newTrip, endDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all" />
                   </div>
                 </div>
-                <button type="submit" disabled={isSubmitting} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 shadow-md shadow-blue-500/20">
+                <button type="submit" disabled={isSubmitting} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 shadow-md shadow-blue-500/20 cursor-pointer">
                   {isSubmitting ? 'Securing Dates...' : 'Create Itinerary'}
                 </button>
               </form>
@@ -334,7 +332,7 @@ export default function Dashboard({ user, onSelectTrip }) {
         {activeInviteTrip && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-sm p-8 relative shadow-2xl">
-              <button onClick={() => setActiveInviteTrip(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
+              <button onClick={() => setActiveInviteTrip(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 p-2 rounded-full cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
               
@@ -351,7 +349,7 @@ export default function Dashboard({ user, onSelectTrip }) {
                     <input required type="email" placeholder="name@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 placeholder:text-slate-400 transition-all" />
                   </div>
                 </div>
-                <button type="submit" disabled={isInviting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 flex justify-center items-center gap-2 shadow-md shadow-blue-500/20">
+                <button type="submit" disabled={isInviting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-2xl mt-4 transition-all disabled:opacity-50 flex justify-center items-center gap-2 shadow-md shadow-blue-500/20 cursor-pointer">
                   <UserPlus className="w-5 h-5" />
                   {isInviting ? 'Sending...' : 'Send Invite'}
                 </button>
