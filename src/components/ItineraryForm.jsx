@@ -1,6 +1,6 @@
 // src/components/ItineraryForm.jsx
 import React from 'react';
-import { Clock, MapPin, Plus, DollarSign } from 'lucide-react';
+import { Clock, MapPin, Plus } from 'lucide-react';
 
 export default function ItineraryForm({
   title, setTitle,
@@ -13,13 +13,14 @@ export default function ItineraryForm({
   location, setLocation, handleLocationChange,
   showPredictions, predictions, handleSelectPrediction,
   details, setDetails,
-  loading, dropdownRef
+  loading, dropdownRef,
+  onAddItem
 }) {
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
   return (
-    <form onSubmit={(e) => e.target.closest('form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))} className="bg-slate-50 p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end border border-slate-100">
+    <form onSubmit={onAddItem} className="bg-slate-50 p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end border border-slate-100">
       <div className="md:col-span-2">
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Activity / Event</label>
         <input 
@@ -49,11 +50,11 @@ export default function ItineraryForm({
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
         <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-2 text-sm text-slate-900">
           <Clock className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-          <select value={selectedHour} onChange={(e) => setSelectedHour(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1">
+          <select value={selectedHour} onChange={(e) => setSelectedHour(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1 cursor-pointer">
             {hours.map(h => <option key={h} value={h}>{h}</option>)}
           </select>
           <span>:</span>
-          <select value={selectedMinute} onChange={(e) => setSelectedMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1">
+          <select value={selectedMinute} onChange={(e) => setSelectedMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1 cursor-pointer">
             {minutes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
@@ -61,25 +62,25 @@ export default function ItineraryForm({
 
       <div>
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500">
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer">
           {sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
         </select>
       </div>
 
       <div>
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost ({currency})</label>
-            <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
-                <span className="absolute left-3 text-xs font-bold text-slate-400 pointer-events-none">{currency}</span>
-                <input 
-                type="number" 
-                step="0.01" 
-                placeholder="0.00" 
-                value={cost} 
-                onChange={(e) => setCost(e.target.value)}
-                className="w-full bg-white border-0 pl-12 pr-3 py-3 text-sm text-slate-900 focus:outline-none"
-                />
-            </div>
+        <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
+          <span className="absolute left-3 text-xs font-bold text-slate-400 pointer-events-none">{currency}</span>
+          <input 
+            type="number" 
+            step="0.01" 
+            placeholder="0.00" 
+            value={cost} 
+            onChange={(e) => setCost(e.target.value)}
+            className="w-full bg-white border-0 pl-12 pr-3 py-3 text-sm text-slate-900 focus:outline-none"
+          />
         </div>
+      </div>
 
       <div className="md:col-span-2 relative" ref={dropdownRef}>
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
@@ -112,7 +113,7 @@ export default function ItineraryForm({
       </div>
 
       <div className="md:col-span-6 flex justify-end">
-        <button type="submit" disabled={loading} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2">
+        <button type="submit" disabled={loading} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer">
           <Plus className="w-4 h-4" /> {loading ? 'Adding...' : 'Add Activity'}
         </button>
       </div>

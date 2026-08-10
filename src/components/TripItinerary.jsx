@@ -277,7 +277,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         </div>
         <button 
           onClick={() => setIsSettingsOpen(true)}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition"
+          className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
         >
           <Settings className="w-4 h-4" /> Manage Activity Types
         </button>
@@ -296,6 +296,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
         details={details} setDetails={setDetails}
         loading={loading} dropdownRef={dropdownRef}
+        onAddItem={handleAddItem}
       />
 
       {/* Itinerary Feed with Daily Totals */}
