@@ -69,15 +69,15 @@ export default function ItineraryForm({
       <div>
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost ({currency})</label>
         <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
-          <DollarSign className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input 
+         <span className="absolute left-3 text-xs font-bold text-slate-400 pointer-events-none">{currency}</span>
+            <input 
             type="number" 
             step="0.01" 
             placeholder="0.00" 
             value={cost} 
             onChange={(e) => setCost(e.target.value)}
-            className="w-full bg-white border-0 pl-9 pr-3 py-3 text-sm text-slate-900 focus:outline-none"
-          />
+            className="w-full bg-white border-0 pl-12 pr-3 py-3 text-sm text-slate-900 focus:outline-none"
+            />
         </div>
       </div>
 

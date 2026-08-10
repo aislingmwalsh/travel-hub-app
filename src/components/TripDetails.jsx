@@ -77,6 +77,7 @@ export default function TripDetails({ tripId, onBack }) {
         tripId={tripId} 
         tripStartDate={tripData.startDate} 
         tripEndDate={tripData.endDate} 
+        currency={tripData.currency || 'EUR'}
       />
 
       {/* Members Management Modal */}
