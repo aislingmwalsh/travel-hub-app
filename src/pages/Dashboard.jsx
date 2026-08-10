@@ -4,6 +4,28 @@ import { auth, db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, arrayUnion, or } from 'firebase/firestore';
 import { Plane, Plus, MapPin, Calendar, Users, LogOut, X, UserPlus, Mail, ChevronRight } from 'lucide-react';
 
+// Helper to map months to seasonal color themes (Option 2)
+function getSeasonalTheme(startDateStr) {
+  if (!startDateStr) return 'bg-slate-50 text-slate-700 border-slate-200';
+  const month = new Date(startDateStr).getMonth() + 1; // 1-12
+  
+  if (month >= 3 && month <= 5) return 'bg-emerald-50/70 hover:bg-emerald-50 text-emerald-900 border-emerald-200'; // Spring
+  if (month >= 6 && month <= 8) return 'bg-amber-50/70 hover:bg-amber-50 text-amber-900 border-amber-200'; // Summer
+  if (month >= 9 && month <= 11) return 'bg-orange-50/70 hover:bg-orange-50 text-orange-900 border-orange-200'; // Autumn
+  return 'bg-sky-50/70 hover:bg-sky-50 text-sky-900 border-sky-200'; // Winter
+}
+
+// Status Badge Styling Helper (Enhancement 1 & 3)
+function getStatusBadgeStyle(status) {
+  switch (status) {
+    case 'Booked': return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    case 'In Progress': return 'bg-blue-100 text-blue-800 border-blue-300';
+    case 'Completed': return 'bg-slate-200 text-slate-700 border-slate-300';
+    case 'Planning':
+    default: return 'bg-amber-100 text-amber-800 border-amber-300';
+  }
+}
+
 export default function Dashboard({ user, onSelectTrip }) {
   const [isNewTripModalOpen, setIsNewTripModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -159,69 +181,74 @@ export default function Dashboard({ user, onSelectTrip }) {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {trips.map((trip) => (
-              <div 
-                key={trip.id} 
-                onClick={() => onSelectTrip(trip.id)}
-                className="group relative bg-white rounded-3xl border border-slate-200 hover:border-blue-300 overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 flex flex-col h-full cursor-pointer"
-              >
-                
-                {/* Card Banner Gradient */}
-                <div className="h-2 w-full bg-gradient-to-r from-teal-400 via-blue-500 to-blue-600"></div>
-                
-                <div className="p-6 flex flex-col flex-grow relative z-10">
-                  <div className="flex justify-between items-start mb-6">
-                    <h3 className="font-bold text-xl text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-2 pr-4">
-                      {trip.title}
-                    </h3>
-                    <span className="bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border border-blue-100 shrink-0">
-                      {trip.status}
-                    </span>
-                  </div>
+            {trips.map((trip) => {
+              const seasonalThemeClass = getSeasonalTheme(trip.startDate);
+              const statusBadgeClass = getStatusBadgeStyle(trip.status);
+
+              return (
+                <div 
+                  key={trip.id} 
+                  onClick={() => onSelectTrip(trip.id)}
+                  className={`group relative rounded-3xl border overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 flex flex-col h-full cursor-pointer ${seasonalThemeClass}`}
+                >
+                  {/* Card Banner Accent */}
+                  <div className="h-2 w-full bg-gradient-to-r from-teal-400 via-blue-500 to-blue-600"></div>
                   
-                  <div className="space-y-4 mt-auto">
-                    <div className="flex items-start gap-3 text-sm text-slate-600">
-                      <MapPin className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{trip.location}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-600">
-                      <Calendar className="w-4 h-4 text-teal-500 shrink-0" />
-                      <span>{formatTripDates(trip)}</span>
+                  <div className="p-6 flex flex-col flex-grow relative z-10">
+                    <div className="flex justify-between items-start gap-3 mb-6">
+                      <h3 className="font-bold text-xl tracking-tight line-clamp-2 pr-2">
+                        {trip.title}
+                      </h3>
+                      {/* Top-Right Status Pill (Enhancement 3) */}
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border shrink-0 ${statusBadgeClass}`}>
+                        {trip.status || 'Planning'}
+                      </span>
                     </div>
                     
-                    <div className="flex items-center justify-between pt-5 border-t border-slate-100 mt-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-2">
-                          {Array.from({ length: Math.min(3, Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)) }).map((_, i) => (
-                            <div key={i} className="w-7 h-7 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center">
-                              <Users className="w-3 h-3 text-slate-400" />
-                            </div>
-                          ))}
-                        </div>
-                        <span className="text-xs font-medium text-slate-500 ml-2">
-                          {Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)} Traveller(s)
-                        </span>
+                    <div className="space-y-4 mt-auto">
+                      <div className="flex items-start gap-3 text-sm opacity-90">
+                        <MapPin className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{trip.location}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm opacity-90">
+                        <Calendar className="w-4 h-4 text-teal-600 shrink-0" />
+                        <span>{formatTripDates(trip)}</span>
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                        {trip.members?.[user.uid] === 'owner' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setActiveInviteTrip(trip); }}
-                            className="bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 p-2 rounded-full transition-colors border border-transparent hover:border-blue-100"
-                            title="Invite a traveller"
-                          >
-                            <UserPlus className="w-4 h-4" />
-                          </button>
-                        )}
-                        <div className="bg-slate-50 group-hover:bg-blue-600 text-slate-400 group-hover:text-white p-2 rounded-full transition-colors">
-                          <ChevronRight className="w-4 h-4" />
+                      <div className="flex items-center justify-between pt-5 border-t border-black/5 mt-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-2">
+                            {Array.from({ length: Math.min(3, Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)) }).map((_, i) => (
+                              <div key={i} className="w-7 h-7 rounded-full bg-white/80 border-2 border-white flex items-center justify-center shadow-xs">
+                                <Users className="w-3 h-3 text-slate-500" />
+                              </div>
+                            ))}
+                          </div>
+                          <span className="text-xs font-semibold opacity-75 ml-2">
+                            {Object.keys(trip.members || {}).length + (trip.invitedEmails?.length || 0)} Traveller(s)
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {trip.members?.[user.uid] === 'owner' && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setActiveInviteTrip(trip); }}
+                              className="bg-white/60 hover:bg-white text-slate-500 hover:text-blue-600 p-2 rounded-full transition-colors border border-black/5 shadow-xs"
+                              title="Invite a traveller"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </button>
+                          )}
+                          <div className="bg-white/60 group-hover:bg-blue-600 text-slate-500 group-hover:text-white p-2 rounded-full transition-colors shadow-xs">
+                            <ChevronRight className="w-4 h-4" />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
