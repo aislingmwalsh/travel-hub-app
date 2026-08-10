@@ -1,446 +1,165 @@
-// src/components/TripItinerary.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Plus, ChevronDown, ChevronUp } from 'lucide-react';
-import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+// src/components/ItineraryCard.jsx
+import React from 'react';
+import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star } from 'lucide-react';
+import { Draggable } from '@hello-pangea/dnd';
 
-import ItineraryForm from './ItineraryForm';
-import ItineraryCard from './ItineraryCard';
-import CategoryModal from './CategoryModal';
-import DailyMapView from './DailyMapView';
+const CATEGORY_COLORS = {
+  Tour: 'bg-purple-50 text-purple-700 border-purple-100',
+  Meal: 'bg-amber-50 text-amber-700 border-amber-100',
+  Museum: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  Transport: 'bg-blue-50 text-blue-700 border-blue-100',
+  Accommodation: 'bg-rose-50 text-rose-700 border-rose-100',
+  Flight: 'bg-sky-50 text-sky-700 border-sky-100',
+  Hiking: 'bg-green-50 text-green-700 border-green-100',
+  Other: 'bg-slate-100 text-slate-700 border-slate-200'
+};
 
-const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
-
-function normalizeDate(dateInput) {
-  if (!dateInput) return null;
-  if (typeof dateInput.toDate === 'function') dateInput = dateInput.toDate();
-  if (dateInput instanceof Date) {
-    if (isNaN(dateInput.getTime())) return null;
-    return `${dateInput.getFullYear()}-${String(dateInput.getMonth() + 1).padStart(2, '0')}-${String(dateInput.getDate()).padStart(2, '0')}`;
-  }
-  if (typeof dateInput === 'string') return dateInput.split('T')[0];
-  return null;
-}
-
-function getTripDateRange(startDateStr, endDateStr) {
-  const normStart = normalizeDate(startDateStr);
-  const normEnd = normalizeDate(endDateStr) || normStart;
-  if (!normStart) return [];
-  if (!normEnd) return [normStart];
-
-  const [sY, sM, sD] = normStart.split('-').map(Number);
-  const [eY, eM, eD] = normEnd.split('-').map(Number);
-  const curr = new Date(sY, sM - 1, sD);
-  const last = new Date(eY, eM - 1, eD);
-
-  if (isNaN(curr.getTime()) || isNaN(last.getTime())) return [normStart];
-
-  const dates = [];
-  while (curr <= last) {
-    dates.push(`${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`);
-    curr.setDate(curr.getDate() + 1);
-  }
-  return dates;
-}
-
-export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest', tripDestination }) {
-  const [itineraryItems, setItineraryItems] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  
-  // Creation Form States & Collapse Toggle
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [selectedHour, setSelectedHour] = useState('09');
-  const [selectedMinute, setSelectedMinute] = useState('00');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [category, setCategory] = useState('Tour');
-  const [location, setLocation] = useState('');
-  const [details, setDetails] = useState('');
-  const [cost, setCost] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Collapsed Days State Tracker (Record of date strings that are closed)
-  const [collapsedDays, setCollapsedDays] = useState({});
-
-  const toggleDayCollapse = (dateStr) => {
-    setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
-  };
-
-  const isGuest = userRole?.toLowerCase() === 'guest';
-
-  const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
-  const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
-
-  useEffect(() => {
-    if (effectiveStartDate && !selectedDate) setSelectedDate(effectiveStartDate);
-  }, [effectiveStartDate, selectedDate]);
-
-  const [expandedCardId, setExpandedCardId] = useState(null);
-  const [editingCardId, setEditingCardId] = useState(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDate, setEditDate] = useState('');
-  const [editHour, setEditHour] = useState('09');
-  const [editMinute, setEditMinute] = useState('00');
-  const [editCategory, setEditCategory] = useState('Tour');
-  const [editLocation, setEditLocation] = useState('');
-  const [editDetails, setEditDetails] = useState('');
-  const [editCost, setEditCost] = useState('');
-
-  const [predictions, setPredictions] = useState([]);
-  const [showPredictions, setShowPredictions] = useState(false);
-  const autocompleteServiceRef = useRef(null);
-  const dropdownRef = useRef(null);
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    async function fetchData() {
-      if (!tripId) return;
-      try {
-        const q = query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc"));
-        const snap = await getDocs(q);
-        setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-        const settingsSnap = await getDoc(doc(db, "trips", tripId, "settings", "categories"));
-        if (settingsSnap.exists() && settingsSnap.data().list) {
-          setCategories(settingsSnap.data().list);
-        }
-      } catch (err) {
-        console.error("Error fetching itinerary:", err);
-      }
-    }
-    fetchData();
-  }, [tripId]);
-
-  useEffect(() => {
-    function initService() {
-      if (window.google?.maps?.places) {
-        autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
-      }
-    }
-    if (window.google?.maps) initService();
-    else {
-      const interval = setInterval(() => {
-        if (window.google?.maps?.places) {
-          initService();
-          clearInterval(interval);
-        }
-      }, 300);
-      return () => clearInterval(interval);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowPredictions(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleLocationChange = (e) => {
-    const value = e.target.value;
-    setLocation(value);
-    if (!value.trim() || !autocompleteServiceRef.current) {
-      setPredictions([]);
-      setShowPredictions(false);
-      return;
-    }
-    autocompleteServiceRef.current.getPlacePredictions({ input: value }, (results, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-        setPredictions(results);
-        setShowPredictions(true);
-      } else {
-        setPredictions([]);
-        setShowPredictions(false);
-      }
-    });
-  };
-
-  const handleSelectPrediction = (prediction) => {
-    setLocation(prediction.description);
-    setPredictions([]);
-    setShowPredictions(false);
-  };
-
-  const handleAddItem = async (e) => {
-    e.preventDefault();
-    if (isGuest) return;
-    if (!title.trim() || !selectedDate || !location.trim()) return;
-
-    setLoading(true);
-    try {
-      const newItem = {
-        title,
-        time: `${selectedHour}:${selectedMinute}`,
-        date: selectedDate,
-        category,
-        location: location.trim(),
-        details: details.trim(),
-        cost: cost ? parseFloat(cost) : 0,
-        highlighted: false,
-        createdAt: new Date()
-      };
-      const docRef = await addDoc(collection(db, "trips", tripId, "itinerary"), newItem);
-      setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
-      setTitle('');
-      setLocation('');
-      setDetails('');
-      setCost('');
-      setSelectedHour('09');
-      setSelectedMinute('00');
-    } catch (err) {
-      console.error("Error adding item:", err);
-      alert("Failed to save activity. Check console for details.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteItem = async (itemId, e) => {
-    e.stopPropagation();
-    if (isGuest) return;
-    try {
-      await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
-      setItineraryItems(prev => prev.filter(i => i.id !== itemId));
-    } catch (err) {
-      console.error("Error deleting item:", err);
-    }
-  };
-
-  const handleStartEdit = (item, e) => {
-    e.stopPropagation();
-    if (isGuest) return;
-    setEditingCardId(item.id);
-    setEditTitle(item.title);
-    setEditDate(item.date || effectiveStartDate);
-    const [h, m] = (item.time || '09:00').split(':');
-    setEditHour(h || '09');
-    setEditMinute(m || '00');
-    setEditCategory(item.category || 'Tour');
-    setEditLocation(item.location || '');
-    setEditDetails(item.details || '');
-    setEditCost(item.cost ? item.cost.toString() : '');
-  };
-
-  const handleSaveEdit = async (itemId, e) => {
-    e.stopPropagation();
-    if (isGuest) return;
-    if (!editTitle.trim() || !editDate) return;
-
-    const updatedFields = {
-      title: editTitle.trim(),
-      date: editDate,
-      time: `${editHour}:${editMinute}`,
-      category: editCategory,
-      location: editLocation.trim(),
-      details: editDetails.trim(),
-      cost: editCost ? parseFloat(editCost) : 0
-    };
-
-    try {
-      await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), updatedFields);
-      setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, ...updatedFields } : i));
-      setEditingCardId(null);
-    } catch (err) {
-      console.error("Error saving edit:", err);
-    }
-  };
-
-  const handleDragEnd = async (result) => {
-    if (isGuest) return;
-    const { destination, source, draggableId } = result;
-    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
-
-    const newDate = destination.droppableId;
-    setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
-
-    try {
-      const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
-      await updateDoc(itemRef, { date: newDate });
-    } catch (err) {
-      console.error("Error updating item date in Firestore:", err);
-      alert("Failed to save schedule change.");
-      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
-      setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }
-  };
-
-  const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
-  const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
-  
-  const groupedItems = itineraryItems.reduce((groups, item) => {
-    const dateKey = item.date || effectiveStartDate;
-    if (!groups[dateKey]) groups[dateKey] = [];
-    groups[dateKey].push(item);
-    return groups;
-  }, {});
-
-  Object.keys(groupedItems).forEach(d => {
-    groupedItems[d].sort((a, b) => {
-      if (a.highlighted && !b.highlighted) return -1;
-      if (!a.highlighted && b.highlighted) return 1;
-      return a.time.localeCompare(b.time);
-    });
-  });
-
-  const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-
-  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+export default function ItineraryCard({
+  item, index, currency,
+  isExpanded, onToggleExpand,
+  isEditing, onStartEdit, onSaveEdit, onCancelEdit, onDelete,
+  onToggleHighlight,
+  editTitle, setEditTitle,
+  editDate, setEditDate, effectiveStartDate, effectiveEndDate,
+  editHour, setEditHour, editMinute, setEditMinute, hours, minutes,
+  editCategory, setEditCategory, sortedCategories,
+  editCost, setEditCost,
+  editLocation, setEditLocation,
+  editDetails, setEditDetails,
+  isGuest
+}) {
+  const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+  const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
 
   return (
-    <div className="mt-8 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-          <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Estimated Total Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
-        </div>
-        <div className="flex items-center gap-3">
-          {!isGuest && (
-            <>
-              <button 
-                onClick={() => setIsAddFormOpen(!isAddFormOpen)}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
-              >
-                <Plus className="w-4 h-4" /> {isAddFormOpen ? 'Close Add Form' : 'Add Activity'}
-              </button>
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
-              >
-                <Settings className="w-4 h-4" /> Manage Types
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Collapsible Creation Form */}
-      {!isGuest && isAddFormOpen && (
-        <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn">
-          <ItineraryForm 
-            title={title} setTitle={setTitle}
-            selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-            selectedHour={selectedHour} setSelectedHour={setSelectedHour}
-            selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
-            category={category} setCategory={setCategory} sortedCategories={sortedCategories}
-            cost={cost} setCost={setCost} currency={currency}
-            location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
-            showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
-            details={details} setDetails={setDetails}
-            loading={loading} dropdownRef={dropdownRef}
-            onAddItem={handleAddItem}
-          />
-        </div>
-      )}
-
-      {/* Itinerary Feed with Collapsible Daily Cards */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="space-y-6">
-          {sortedDates.map(dateStr => {
-            const items = groupedItems[dateStr] || [];
-            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-            const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
-            const isDayCollapsed = collapsedDays[dateStr];
-
-            return (
-              <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                {/* Collapsible Day Header */}
-                <div 
-                  onClick={() => toggleDayCollapse(dateStr)}
-                  className="bg-slate-100 hover:bg-slate-200/60 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between cursor-pointer transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
-                    <div className="text-slate-500 p-1">
-                      {isDayCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                    </div>
-                  </div>
+    <Draggable key={item.id} draggableId={item.id} index={index}>
+      {(provided, snapshot) => (
+        <div 
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          style={provided.draggableProps.style}
+          onClick={() => { if (!isEditing && !isExpanded) onToggleExpand(); }}
+          className={`bg-white rounded-xl border transition overflow-hidden ${
+            isEditing ? 'cursor-default ring-2 ring-blue-400' : 'cursor-pointer'
+          } ${
+            item.highlighted 
+              ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/20' 
+              : 'border-slate-100 shadow-sm hover:shadow-md'
+          } ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
+        >
+          <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            
+            {/* Left Side: Drag Handle & Main Content */}
+            <div className="flex items-start gap-3 w-full sm:w-auto">
+              <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500 cursor-grab p-1 mt-0.5">
+                <GripVertical className="w-4 h-4" />
+              </div>
+              
+              <div className="flex-grow">
+                {/* Title and Inline Time */}
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                    <Clock className="w-3 h-3 text-blue-600" />{item.time}
+                  </span>
+                  <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
+                  {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
+                  {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                 </div>
 
-                {/* Day Content (Droppable list & Map collapsible) */}
-                {!isDayCollapsed && (
-                  <div className="p-4 space-y-4">
-                    <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
-                      {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps} className={`space-y-3 min-h-[90px] transition-colors rounded-xl p-1 ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
-                          {items.length === 0 ? (
-                            <div className="h-20 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
-                              Drop activities here
-                            </div>
-                          ) : (
-                            items.map((item, index) => (
-                              <ItineraryCard 
-                                key={item.id}
-                                item={item} 
-                                index={index} 
-                                currency={currency}
-                                isExpanded={expandedCardId === item.id}
-                                onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                                isEditing={editingCardId === item.id}
-                                onStartEdit={(e) => handleStartEdit(item, e)}
-                                onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                                onCancelEdit={() => setEditingCardId(null)}
-                                onDelete={(e) => handleDeleteItem(item.id, e)}
-                                onToggleHighlight={async (itemId, newHighlightState) => {
-                                  try {
-                                    await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                                    setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                                  } catch (err) {
-                                    console.error("Error updating highlight status:", err);
-                                  }
-                                }}
-                                editTitle={editTitle} setEditTitle={setEditTitle}
-                                editDate={editDate} setEditDate={setEditDate} 
-                                effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                                editHour={editHour} setEditHour={setEditHour} 
-                                editMinute={editMinute} setEditMinute={setEditMinute} 
-                                hours={hours} minutes={minutes}
-                                editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                                editCost={editCost} setEditCost={setEditCost}
-                                editLocation={editLocation} setEditLocation={setEditLocation}
-                                editDetails={editDetails} setEditDetails={setEditDetails}
-                                isGuest={isGuest}
-                              />
-                            ))
-                          )}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-
-                    {/* Collapsible Daily Map View Component */}
-                    {items.filter(a => a.location).length > 0 && (
-                      <DailyMapView 
-                        activities={items} 
-                        currency={currency} 
-                        destination={tripDestination} 
-                      />
-                    )}
+                {/* Location */}
+                {item.location && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                    <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                    <span>{item.location}</span>
                   </div>
                 )}
               </div>
-            );
-          })}
-        </div>
-      </DragDropContext>
+            </div>
 
-      <CategoryModal 
-        tripId={tripId}
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        categories={categories}
-        setCategories={setCategories}
-        sortedCategories={sortedCategories}
-      />
-    </div>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0" onClick={(e) => e.stopPropagation()}>
+              {!isEditing && !isGuest && (
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (onToggleHighlight) onToggleHighlight(item.id, !item.highlighted); 
+                  }} 
+                  className={`p-2 transition cursor-pointer ${item.highlighted ? 'text-amber-500 fill-amber-500' : 'text-slate-300 hover:text-amber-500'}`} 
+                  title={item.highlighted ? "Remove Highlight" : "Highlight Activity"}
+                >
+                  <Star className="w-4 h-4" />
+                </button>
+              )}
+
+              {!isEditing && !isGuest && (
+                <button 
+                  onClick={onStartEdit} 
+                  className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" 
+                  title="Edit"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+
+              {!isGuest && (
+                <button 
+                  onClick={onDelete} 
+                  className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" 
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+
+              <div 
+                onClick={onToggleExpand} 
+                className="text-slate-400 p-1 cursor-pointer hover:text-slate-600"
+              >
+                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Expanded Details View / Inline Editor */}
+          {isExpanded && (
+            <div onClick={(e) => e.stopPropagation()} className="bg-slate-50 border-t border-slate-100 p-5">
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
+                    <button onClick={onCancelEdit} className="text-xs text-slate-400 hover:text-slate-600 font-semibold cursor-pointer">Cancel</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label><input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" min={effectiveStartDate} max={effectiveEndDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label><div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm"><select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{hours.map(h => <option key={h} value={h}>{h}</option>)}</select><span>:</span><select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label><input type="number" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
+                    <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label><input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
+                    <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label><textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none" /></div>
+                  </div>
+                  <div className="flex justify-end pt-2"><button onClick={onSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"><FileText className="w-3.5 h-3.5 text-blue-600" />Activity Details & Notes</div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-4 rounded-xl border border-slate-200">{item.details?.trim() ? item.details : "No additional notes provided."}</p>
+                  </div>
+                  <div className="space-y-2 flex flex-col">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"><MapPin className="w-3.5 h-3.5 text-teal-500" />Location & Map</div>
+                    <a href={mapsSearchUrl} target="_blank" rel="noopener noreferrer" className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm">
+                      <div><p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">{item.location}</p><p className="text-[11px] text-slate-400">Click to open directions</p></div>
+                      <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline"><span>Open in Google Maps</span><ExternalLink className="w-3.5 h-3.5" /></div>
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Draggable>
   );
 }
