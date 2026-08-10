@@ -18,20 +18,42 @@ const CATEGORY_COLORS = {
   Other: 'bg-slate-100 text-slate-700 border-slate-200'
 };
 
-// Helper function to generate all YYYY-MM-DD dates between a start and end date
-function getTripDateRange(startDateStr, endDateStr) {
-  if (!startDateStr) return [];
-  if (!endDateStr) return [startDateStr];
+// Helper function to safely convert Firestore Timestamps or strings to 'YYYY-MM-DD'
+function normalizeDate(dateInput) {
+  if (!dateInput) return null;
+  if (typeof dateInput.toDate === 'function') {
+    dateInput = dateInput.toDate();
+  }
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return null;
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof dateInput === 'string') {
+    return dateInput.split('T')[0];
+  }
+  return null;
+}
 
-  const dates = [];
-  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-  const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+// Robust helper function to generate all YYYY-MM-DD dates between a start and end date
+function getTripDateRange(startDateStr, endDateStr) {
+  const normStart = normalizeDate(startDateStr);
+  const normEnd = normalizeDate(endDateStr) || normStart;
+
+  if (!normStart) return [];
+  if (!normEnd) return [normStart];
+
+  const [startYear, startMonth, startDay] = normStart.split('-').map(Number);
+  const [endYear, endMonth, endDay] = normEnd.split('-').map(Number);
 
   const curr = new Date(startYear, startMonth - 1, startDay);
   const last = new Date(endYear, endMonth - 1, endDay);
 
-  if (isNaN(curr.getTime()) || isNaN(last.getTime())) return [startDateStr];
+  if (isNaN(curr.getTime()) || isNaN(last.getTime())) return [normStart];
 
+  const dates = [];
   while (curr <= last) {
     const year = curr.getFullYear();
     const month = String(curr.getMonth() + 1).padStart(2, '0');
@@ -55,6 +77,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Normalize incoming props from parent
+  const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
+  const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
+
+  // Keep creation form date synced with effective start date
+  useEffect(() => {
+    if (effectiveStartDate && !selectedDate) {
+      setSelectedDate(effectiveStartDate);
+    }
+  }, [effectiveStartDate, selectedDate]);
 
   // Expanded card & Editing States
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -104,17 +137,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
     }
     fetchData();
   }, [tripId]);
-
-  // Determine effective start and end dates (falls back to props, then itinerary items, then today)
-  const effectiveStartDate = tripStartDate || (itineraryItems.length > 0 ? itineraryItems.map(i => i.date).sort()[0] : new Date().toISOString().split('T')[0]);
-  const effectiveEndDate = tripEndDate || (itineraryItems.length > 0 ? itineraryItems.map(i => i.date).sort().reverse()[0] : effectiveStartDate);
-
-  // Keep creation form date synced
-  useEffect(() => {
-    if (effectiveStartDate && !selectedDate) {
-      setSelectedDate(effectiveStartDate);
-    }
-  }, [effectiveStartDate, selectedDate]);
 
   // Initialize Google Maps AutocompleteService safely
   useEffect(() => {
@@ -347,11 +369,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate }) {
   // Alphabetically sorted categories list for dropdowns
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
 
-  // Generate all scheduled days across the full trip range
-  const allTripDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
-  const itemDates = itineraryItems.map(item => item.date).filter(Boolean);
-  const combinedDatesSet = new Set([...allTripDates, ...itemDates]);
-  const sortedDates = Array.from(combinedDatesSet).sort();
+  // Generate all scheduled days across the formal trip range
+  const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
 
   // Group items by date
   const groupedItems = itineraryItems.reduce((groups, item) => {

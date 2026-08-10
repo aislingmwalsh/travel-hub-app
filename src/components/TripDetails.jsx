@@ -67,9 +67,11 @@ export default function TripDetails({ tripId, onBack }) {
       </div>
 
       {/* Itinerary Section (Where our date-shifting schedule lives) */}
+      
       <TripItinerary 
         tripId={trip.id} 
-        tripStartDate={trip.startDate} 
+        tripStartDate={trip.startDate} // Ensure this is a 'YYYY-MM-DD' string
+        tripEndDate={trip.endDate}     // Ensure this is a 'YYYY-MM-DD' string
       />
     </div>
   );
