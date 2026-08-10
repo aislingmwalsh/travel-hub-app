@@ -2,21 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { Calendar, Clock, MapPin, Plus, Trash2, GripVertical, Settings, X, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, DollarSign } from 'lucide-react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Calendar, Settings } from 'lucide-react';
+import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+
+import ItineraryForm from './ItineraryForm';
+import ItineraryCard from './ItineraryCard';
+import CategoryModal from './CategoryModal';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
-
-const CATEGORY_COLORS = {
-  Tour: 'bg-purple-50 text-purple-700 border-purple-100',
-  Meal: 'bg-amber-50 text-amber-700 border-amber-100',
-  Museum: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  Transport: 'bg-blue-50 text-blue-700 border-blue-100',
-  Accommodation: 'bg-rose-50 text-rose-700 border-rose-100',
-  Flight: 'bg-sky-50 text-sky-700 border-sky-100',
-  Hiking: 'bg-green-50 text-green-700 border-green-100',
-  Other: 'bg-slate-100 text-slate-700 border-slate-200'
-};
 
 function normalizeDate(dateInput) {
   if (!dateInput) return null;
@@ -91,9 +84,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Settings Modal
+  // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
 
   // Fetch Firestore Data
   useEffect(() => {
@@ -159,6 +151,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         setShowPredictions(false);
       }
     });
+  };
+
+  const handleSelectPrediction = (prediction) => {
+    setLocation(prediction.description);
+    setPredictions([]);
+    setShowPredictions(false);
   };
 
   const handleAddItem = async (e) => {
@@ -265,7 +263,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   Object.keys(groupedItems).forEach(d => groupedItems[d].sort((a, b) => a.time.localeCompare(b.time)));
 
-  // Calculate Grand Total Cost
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -286,106 +283,20 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         </button>
       </div>
 
-      {/* Creation Form */}
-      <form onSubmit={handleAddItem} className="bg-slate-50 p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end border border-slate-100">
-        <div className="md:col-span-2">
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Activity / Event</label>
-          <input 
-            type="text" 
-            placeholder="e.g., Guinness Storehouse Tour" 
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date</label>
-          <input 
-            type="date" 
-            min={effectiveStartDate}
-            max={effectiveEndDate}
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            required
-            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Time</label>
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-2 text-sm text-slate-900">
-            <Clock className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-            <select value={selectedHour} onChange={(e) => setSelectedHour(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1">
-              {hours.map(h => <option key={h} value={h}>{h}</option>)}
-            </select>
-            <span>:</span>
-            <select value={selectedMinute} onChange={(e) => setSelectedMinute(e.target.value)} className="bg-transparent focus:outline-none font-medium py-1">
-              {minutes.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500">
-            {sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost ({currency})</label>
-          <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
-            <DollarSign className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input 
-              type="number" 
-              step="0.01" 
-              placeholder="0.00" 
-              value={cost} 
-              onChange={(e) => setCost(e.target.value)}
-              className="w-full bg-white border-0 pl-9 pr-3 py-3 text-sm text-slate-900 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div className="md:col-span-2 relative" ref={dropdownRef}>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / Venue</label>
-          <div className="relative flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500">
-            <MapPin className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input 
-              type="text" 
-              placeholder="Search location..." 
-              value={location}
-              onChange={handleLocationChange}
-              onFocus={() => { if (predictions.length > 0) setShowPredictions(true); }}
-              required
-              className="w-full bg-white border-0 pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none"
-            />
-          </div>
-          {showPredictions && predictions.length > 0 && (
-            <ul className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto z-50">
-              {predictions.map(p => (
-                <li key={p.place_id} onClick={() => { setLocation(p.description); setPredictions([]); setShowPredictions(false); }} className="px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-slate-100 flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                  <span className="truncate">{p.description}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="md:col-span-4">
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Activity Details & Notes (Optional)</label>
-          <textarea placeholder="Add booking references or notes..." value={details} onChange={(e) => setDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none resize-none" />
-        </div>
-
-        <div className="md:col-span-6 flex justify-end">
-          <button type="submit" disabled={loading} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2">
-            <Plus className="w-4 h-4" /> {loading ? 'Adding...' : 'Add Activity'}
-          </button>
-        </div>
-      </form>
+      {/* Creation Form Sub-component */}
+      <ItineraryForm 
+        title={title} setTitle={setTitle}
+        selectedDate={selectedDate} setSelectedDate={setSelectedDate}
+        effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+        selectedHour={selectedHour} setSelectedHour={setSelectedHour}
+        selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
+        category={category} setCategory={setCategory} sortedCategories={sortedCategories}
+        cost={cost} setCost={setCost} currency={currency}
+        location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
+        showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
+        details={details} setDetails={setDetails}
+        loading={loading} dropdownRef={dropdownRef}
+      />
 
       {/* Itinerary Feed with Daily Totals */}
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -414,77 +325,29 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       {items.length === 0 ? (
                         <div className="h-12 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">Drop activities here</div>
                       ) : (
-                        items.map((item, index) => {
-                          const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
-                          const isExpanded = expandedCardId === item.id;
-                          const isEditing = editingCardId === item.id;
-                          const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
-
-                          return (
-                            <Draggable key={item.id} draggableId={item.id} index={index}>
-                              {(provided, snapshot) => (
-                                <div ref={provided.innerRef} {...provided.draggableProps} style={provided.draggableProps.style} onClick={() => { if (!isEditing) setExpandedCardId(isExpanded ? null : item.id); }} className={`bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}>
-                                  <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div className="flex items-start sm:items-center gap-3">
-                                      <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()} className="text-slate-300 hover:text-slate-500 cursor-grab p-1"><GripVertical className="w-4 h-4" /></div>
-                                      <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0"><Clock className="w-3.5 h-3.5 text-blue-600" />{item.time}</div>
-                                      <div>
-                                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                                          <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
-                                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
-                                          {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
-                                        </div>
-                                        {item.location && <div className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" /><span>{item.location}</span></div>}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 self-end sm:self-center">
-                                      {!isEditing && <button onClick={(e) => handleStartEdit(item, e)} className="text-slate-400 hover:text-blue-600 p-2 transition" title="Edit"><Edit2 className="w-4 h-4" /></button>}
-                                      <button onClick={(e) => handleDeleteItem(item.id, e)} className="text-slate-400 hover:text-red-500 p-2 transition" title="Delete"><Trash2 className="w-4 h-4" /></button>
-                                      <div className="text-slate-400 p-1">{isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
-                                    </div>
-                                  </div>
-
-                                  {isExpanded && (
-                                    <div onClick={(e) => e.stopPropagation()} className="bg-slate-50 border-t border-slate-100 p-5">
-                                      {isEditing ? (
-                                        <div className="space-y-4">
-                                          <div className="flex justify-between items-center mb-2">
-                                            <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
-                                            <button onClick={() => setEditingCardId(null)} className="text-xs text-slate-400 hover:text-slate-600 font-semibold">Cancel</button>
-                                          </div>
-                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <div className="md:col-span-2"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label><input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
-                                            <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" min={effectiveStartDate} max={effectiveEndDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
-                                            <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label><div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm"><select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none">{hours.h?.map ? '' : hours.map(h => <option key={h} value={h}>{h}</option>)}</select><span>:</span><select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>
-                                            <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
-                                            <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label><input type="number" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
-                                            <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label><input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
-                                            <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label><textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none" /></div>
-                                          </div>
-                                          <div className="flex justify-end pt-2"><button onClick={(e) => handleSaveEdit(item.id, e)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
-                                        </div>
-                                      ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                          <div className="md:col-span-2 space-y-2">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"><FileText className="w-3.5 h-3.5 text-blue-600" />Activity Details & Notes</div>
-                                            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-white p-4 rounded-xl border border-slate-200">{item.details?.trim() ? item.details : "No additional notes provided."}</p>
-                                          </div>
-                                          <div className="space-y-2 flex flex-col">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"><MapPin className="w-3.5 h-3.5 text-teal-500" />Location & Map</div>
-                                            <a href={mapsSearchUrl} target="_blank" rel="noopener noreferrer" className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm">
-                                              <div><p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">{item.location}</p><p className="text-[11px] text-slate-400">Click to open directions</p></div>
-                                              <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline"><span>Open in Google Maps</span><ExternalLink className="w-3.5 h-3.5" /></div>
-                                            </a>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </Draggable>
-                          );
-                        })
+                        items.map((item, index) => (
+                          <ItineraryCard 
+                            key={item.id}
+                            item={item} index={index} currency={currency}
+                            isExpanded={expandedCardId === item.id}
+                            onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                            isEditing={editingCardId === item.id}
+                            onStartEdit={(e) => handleStartEdit(item, e)}
+                            onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                            onCancelEdit={() => setEditingCardId(null)}
+                            onDelete={(e) => handleDeleteItem(item.id, e)}
+                            editTitle={editTitle} setEditTitle={setEditTitle}
+                            editDate={editDate} setEditDate={setEditDate} 
+                            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                            editHour={editHour} setEditHour={setEditHour} 
+                            editMinute={editMinute} setEditMinute={setEditMinute} 
+                            hours={hours} minutes={minutes}
+                            editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                            editCost={editCost} setEditCost={setEditCost}
+                            editLocation={editLocation} setEditLocation={setEditLocation}
+                            editDetails={editDetails} setEditDetails={setEditDetails}
+                          />
+                        ))
                       )}
                       {provided.placeholder}
                     </div>
@@ -496,40 +359,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         </div>
       </DragDropContext>
 
-      {/* Manage Activity Types Modal */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-8 relative shadow-2xl">
-            <button onClick={() => setIsSettingsOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition bg-slate-50 hover:bg-slate-100 p-2 rounded-full"><X className="w-4 h-4" /></button>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Manage Activity Types</h2>
-            <p className="text-sm text-slate-500 mb-6">Add or remove custom categories.</p>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (!newCategoryName.trim() || categories.includes(newCategoryName.trim())) return;
-              const updated = [...categories, newCategoryName.trim()];
-              setCategories(updated);
-              setNewCategoryName('');
-              await setDoc(doc(db, "trips", tripId, "settings", "categories"), { list: updated });
-            }} className="flex gap-2 mb-6">
-              <input type="text" placeholder="e.g., Flight, Hiking" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} required className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none" />
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl text-sm">Add</button>
-            </form>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {sortedCategories.map(cat => (
-                <div key={cat} className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
-                  <span className="font-semibold text-slate-800 text-sm">{cat}</span>
-                  <button onClick={async () => {
-                    if (categories.length <= 1) return alert("Must have at least one category.");
-                    const updated = categories.filter(c => c !== cat);
-                    setCategories(updated);
-                    await setDoc(doc(db, "trips", tripId, "settings", "categories"), { list: updated });
-                  }} className="text-slate-400 hover:text-red-500 p-1.5 transition"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Category Management Modal */}
+      <CategoryModal 
+        tripId={tripId}
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        categories={categories}
+        setCategories={setCategories}
+        sortedCategories={sortedCategories}
+      />
     </div>
   );
 }

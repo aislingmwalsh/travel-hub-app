@@ -1,4 +1,4 @@
-// src/components/TripDetails.jsx
+// src/components/TripDetails.jsx (or src/pages/TripDetails.jsx)
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -13,7 +13,6 @@ export default function TripDetails({ tripId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
-  // Fetch trip document details from Firestore
   useEffect(() => {
     async function fetchTripDetails() {
       if (!tripId) return;
@@ -22,8 +21,6 @@ export default function TripDetails({ tripId, onBack }) {
         const tripSnap = await getDoc(tripRef);
         if (tripSnap.exists()) {
           setTripData(tripSnap.data());
-        } else {
-          console.error("Trip not found");
         }
       } catch (error) {
         console.error("Error fetching trip:", error);
@@ -33,6 +30,11 @@ export default function TripDetails({ tripId, onBack }) {
     }
     fetchTripDetails();
   }, [tripId]);
+
+  // Handler to instantly update local state when edited in TripHeader
+  const handleTripUpdate = (updatedFields) => {
+    setTripData(prev => ({ ...prev, ...updatedFields }));
+  };
 
   if (loading) {
     return (
@@ -46,7 +48,6 @@ export default function TripDetails({ tripId, onBack }) {
     return (
       <div className="max-w-4xl mx-auto p-8 text-center">
         <h2 className="text-xl font-bold text-slate-800 mb-2">Trip not found</h2>
-        <p className="text-slate-500 text-sm mb-4">The trip you are looking for does not exist or has been removed.</p>
         <button onClick={onBack} className="text-blue-600 font-bold text-sm underline">Go Back</button>
       </div>
     );
@@ -54,25 +55,21 @@ export default function TripDetails({ tripId, onBack }) {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8">
-      {/* Back button using your App.jsx's onBack handler */}
       <div className="mb-6">
-        <button 
-          onClick={onBack} 
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
-        >
+        <button onClick={onBack} className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
       </div>
 
-      {/* Trip Header Component */}
+      {/* Pass onTripUpdate callback */}
       <TripHeader 
         tripId={tripId} 
         tripData={tripData} 
         userRole={userRole} 
-        onOpenMembersModal={() => setIsMembersModalOpen(true)} 
+        onOpenMembersModal={() => setIsMembersModalOpen(true)}
+        onTripUpdate={handleTripUpdate}
       />
 
-      {/* Itinerary Component */}
       <TripItinerary 
         tripId={tripId} 
         tripStartDate={tripData.startDate} 
@@ -80,7 +77,6 @@ export default function TripDetails({ tripId, onBack }) {
         currency={tripData.currency || 'EUR'}
       />
 
-      {/* Members Management Modal */}
       <TripMembersModal 
         tripId={tripId} 
         isOpen={isMembersModalOpen} 

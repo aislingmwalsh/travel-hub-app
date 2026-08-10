@@ -6,7 +6,7 @@ import { Calendar, MapPin, Edit3, Save, X, Tag, Users } from 'lucide-react';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
-export default function TripHeader({ tripId, tripData, userRole, onOpenMembersModal }) {
+export default function TripHeader({ tripId, tripData, userRole, onOpenMembersModal, onTripUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(tripData.title || '');
   const [destination, setDestination] = useState(tripData.destination || '');
@@ -19,14 +19,22 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
     e.preventDefault();
     try {
       const tripRef = doc(db, "trips", tripId);
-      await updateDoc(tripRef, {
+      const updatedFields = {
         title,
         destination,
         startDate,
         endDate,
         status,
         currency
-      });
+      };
+      
+      await updateDoc(tripRef, updatedFields);
+      
+      // Instantly notify parent component of the new dates/details
+      if (onTripUpdate) {
+        onTripUpdate(updatedFields);
+      }
+      
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating trip details:", error);
