@@ -23,6 +23,7 @@ export default function DailyMapView({ activities, currency, destination }) {
         defaultCenter = destResults[0].geometry.location;
       }
 
+      // Initialize map instance once
       if (!mapInstanceRef.current && mapRef.current) {
         mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
           zoom: 14,
@@ -35,12 +36,16 @@ export default function DailyMapView({ activities, currency, destination }) {
 
       const map = mapInstanceRef.current;
       if (map) {
-        google.maps.event.trigger(map, 'resize');
-        map.setCenter(defaultCenter);
+        // FIX: Force Google Maps to recalculate dimensions after expansion repaint
+        setTimeout(() => {
+          window.google.maps.event.trigger(map, 'resize');
+          map.setCenter(defaultCenter);
+        }, 100);
       }
 
       if (validActivities.length === 0) return;
 
+      // Clear old markers
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
 
