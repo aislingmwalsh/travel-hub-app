@@ -38,8 +38,10 @@ export default function ItineraryCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           style={provided.draggableProps.style}
-          onClick={() => { if (!isEditing) onToggleExpand(); }}
-          className={`bg-white rounded-xl border transition cursor-pointer overflow-hidden ${
+          onClick={() => { if (!isEditing && !isExpanded) onToggleExpand(); }}
+          className={`bg-white rounded-xl border transition overflow-hidden ${
+            isEditing ? 'cursor-default ring-2 ring-blue-400' : 'cursor-pointer'
+          } ${
             item.highlighted 
               ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/20' 
               : 'border-slate-100 shadow-sm hover:shadow-md'
@@ -76,7 +78,7 @@ export default function ItineraryCard({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0" onClick={(e) => e.stopPropagation()}>
               {!isEditing && !isGuest && (
                 <button 
                   onClick={(e) => { 
@@ -91,24 +93,35 @@ export default function ItineraryCard({
               )}
 
               {!isEditing && !isGuest && (
-                <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" title="Edit">
+                <button 
+                  onClick={onStartEdit} 
+                  className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" 
+                  title="Edit"
+                >
                   <Edit2 className="w-4 h-4" />
                 </button>
               )}
 
               {!isGuest && (
-                <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" title="Delete">
+                <button 
+                  onClick={onDelete} 
+                  className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" 
+                  title="Delete"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
 
-              <div className="text-slate-400 p-1">
+              <div 
+                onClick={onToggleExpand} 
+                className="text-slate-400 p-1 cursor-pointer hover:text-slate-600"
+              >
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             </div>
           </div>
 
-          {/* Expanded Details View */}
+          {/* Expanded Details View / Inline Editor */}
           {isExpanded && (
             <div onClick={(e) => e.stopPropagation()} className="bg-slate-50 border-t border-slate-100 p-5">
               {isEditing ? (
