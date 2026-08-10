@@ -276,12 +276,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   }, {});
 
   Object.keys(groupedItems).forEach(d => {
-    // Sort items by time, but prioritize highlighted items to the top automatically
-    groupedItems[d].sort((a, b) => {
-      if (a.highlighted && !b.highlighted) return -1;
-      if (!a.highlighted && b.highlighted) return 1;
-      return a.time.localeCompare(b.time);
-    });
+    groupedItems[d].sort((a, b) => a.time.localeCompare(b.time));
   });
 
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
@@ -324,13 +319,16 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         />
       )}
 
-      {/* Itinerary Feed with Single Droppable Tree & Full-Span Highlights */}
+      {/* Itinerary Feed with Full-Width Highlight Banners & Side-by-Side Grid */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
             const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+
+            const highlightedItems = items.filter(i => i.highlighted);
+            const normalItems = items.filter(i => !i.highlighted);
 
             return (
               <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
@@ -345,49 +343,96 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   </div>
                 </div>
 
+                {/* 🌟 FULL-WIDTH FEATURED HIGHLIGHTS ACROSS THE TOP */}
+                {highlightedItems.length > 0 && (
+                  <div className="p-4 bg-amber-50/60 border-b border-amber-200/60 space-y-3">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider px-1">
+                      <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Featured Milestones
+                    </div>
+                    {highlightedItems.map((item, index) => (
+                      <ItineraryCard 
+                        key={item.id}
+                        item={item} 
+                        index={index} 
+                        currency={currency}
+                        isExpanded={expandedCardId === item.id}
+                        onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                        isEditing={editingCardId === item.id}
+                        onStartEdit={(e) => handleStartEdit(item, e)}
+                        onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                        onCancelEdit={() => setEditingCardId(null)}
+                        onDelete={(e) => handleDeleteItem(item.id, e)}
+                        onToggleHighlight={async (itemId, newHighlightState) => {
+                          try {
+                            await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                            setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                          } catch (err) {
+                            console.error("Error updating highlight status:", err);
+                          }
+                        }}
+                        editTitle={editTitle} setEditTitle={setEditTitle}
+                        editDate={editDate} setEditDate={setEditDate} 
+                        effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                        editHour={editHour} setEditHour={setEditHour} 
+                        editMinute={editMinute} setEditMinute={setEditMinute} 
+                        hours={hours} minutes={minutes}
+                        editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                        editCost={editCost} setEditCost={setEditCost}
+                        editLocation={editLocation} setEditLocation={setEditLocation}
+                        editDetails={editDetails} setEditDetails={setEditDetails}
+                        isGuest={isGuest}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Side-by-Side Grid for Normal Itinerary Cards & Daily Map */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:divide-x divide-slate-200">
                   <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
                     {(provided, snapshot) => (
-                      <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[150px] transition-colors grid grid-cols-1 lg:grid-cols-2 gap-3 content-start ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
-                        {items.length === 0 ? (
-                          <div className="col-span-full h-24 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 m-2">
+                      <div ref={provided.innerRef} {...provided.droppableProps} className={`p-4 space-y-3 min-h-[180px] transition-colors flex flex-col justify-start ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
+                        {normalItems.length === 0 && highlightedItems.length === 0 ? (
+                          <div className="h-32 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 m-2">
                             Drop activities here
                           </div>
+                        ) : normalItems.length === 0 && highlightedItems.length > 0 ? (
+                          <div className="h-20 flex items-center justify-center text-[11px] text-slate-400 italic">
+                            All activities for this day are featured above.
+                          </div>
                         ) : (
-                          items.map((item, index) => (
-                            <div key={item.id} className={`${item.highlighted ? 'col-span-full' : 'col-span-full lg:col-span-1'}`}>
-                              <ItineraryCard 
-                                item={item} 
-                                index={index} 
-                                currency={currency}
-                                isExpanded={expandedCardId === item.id}
-                                onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                                isEditing={editingCardId === item.id}
-                                onStartEdit={(e) => handleStartEdit(item, e)}
-                                onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                                onCancelEdit={() => setEditingCardId(null)}
-                                onDelete={(e) => handleDeleteItem(item.id, e)}
-                                onToggleHighlight={async (itemId, newHighlightState) => {
-                                  try {
-                                    await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                                    setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                                  } catch (err) {
-                                    console.error("Error updating highlight status:", err);
-                                  }
-                                }}
-                                editTitle={editTitle} setEditTitle={setEditTitle}
-                                editDate={editDate} setEditDate={setEditDate} 
-                                effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                                editHour={editHour} setEditHour={setEditHour} 
-                                editMinute={editMinute} setEditMinute={setEditMinute} 
-                                hours={hours} minutes={minutes}
-                                editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                                editCost={editCost} setEditCost={setEditCost}
-                                editLocation={editLocation} setEditLocation={setEditLocation}
-                                editDetails={editDetails} setEditDetails={setEditDetails}
-                                isGuest={isGuest}
-                              />
-                            </div>
+                          normalItems.map((item, index) => (
+                            <ItineraryCard 
+                              key={item.id}
+                              item={item} 
+                              index={index} 
+                              currency={currency}
+                              isExpanded={expandedCardId === item.id}
+                              onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                              isEditing={editingCardId === item.id}
+                              onStartEdit={(e) => handleStartEdit(item, e)}
+                              onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                              onCancelEdit={() => setEditingCardId(null)}
+                              onDelete={(e) => handleDeleteItem(item.id, e)}
+                              onToggleHighlight={async (itemId, newHighlightState) => {
+                                try {
+                                  await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                  setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                                } catch (err) {
+                                  console.error("Error updating highlight status:", err);
+                                }
+                              }}
+                              editTitle={editTitle} setEditTitle={setEditTitle}
+                              editDate={editDate} setEditDate={setEditDate} 
+                              effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                              editHour={editHour} setEditHour={setEditHour} 
+                              editMinute={editMinute} setEditMinute={setEditMinute} 
+                              hours={hours} minutes={minutes}
+                              editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                              editCost={editCost} setEditCost={setEditCost}
+                              editLocation={editLocation} setEditLocation={setEditLocation}
+                              editDetails={editDetails} setEditDetails={setEditDetails}
+                              isGuest={isGuest}
+                            />
                           ))
                         )}
                         {provided.placeholder}
