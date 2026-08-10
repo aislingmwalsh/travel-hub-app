@@ -18,13 +18,15 @@ export default function ItineraryCard({
   item, index, currency,
   isExpanded, onToggleExpand,
   isEditing, onStartEdit, onSaveEdit, onCancelEdit, onDelete,
+  onToggleHighlight,
   editTitle, setEditTitle,
   editDate, setEditDate, effectiveStartDate, effectiveEndDate,
   editHour, setEditHour, editMinute, setEditMinute, hours, minutes,
   editCategory, setEditCategory, sortedCategories,
   editCost, setEditCost,
   editLocation, setEditLocation,
-  editDetails, setEditDetails
+  editDetails, setEditDetails,
+  isGuest
 }) {
   const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
   const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
@@ -37,7 +39,11 @@ export default function ItineraryCard({
           {...provided.draggableProps}
           style={provided.draggableProps.style}
           onClick={() => { if (!isEditing) onToggleExpand(); }}
-          className={`bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer overflow-hidden ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
+          className={`bg-white rounded-xl border transition cursor-pointer overflow-hidden ${
+            item.highlighted 
+              ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/20' 
+              : 'border-slate-100 shadow-sm hover:shadow-md'
+          } ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
         >
           <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-start sm:items-center gap-3">
@@ -52,31 +58,42 @@ export default function ItineraryCard({
                   <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
                   {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
+                  {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                 </div>
                 {item.location && <div className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" /><span>{item.location}</span></div>}
               </div>
             </div>
+
+            {/* Action Buttons */}
             <div className="flex items-center gap-2 self-end sm:self-center">
-              {/* ⭐ ADD THIS HIGHLIGHT STAR BUTTON HERE */}
-                {!isEditing && (
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      onToggleHighlight(item.id, !item.highlighted); 
-                    }} 
-                    className={`p-2 transition cursor-pointer ${
-                      item.highlighted 
-                        ? 'text-amber-500 fill-amber-500' 
-                        : 'text-slate-300 hover:text-amber-500'
-                    }`} 
-                    title={item.highlighted ? "Remove Highlight" : "Highlight Activity"}
-                  >
-                    <Star className="w-4 h-4" />
-                  </button>
-                )}
-              {!isEditing && <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" title="Edit"><Edit2 className="w-4 h-4" /></button>}
-              <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
-              <div className="text-slate-400 p-1">{isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
+              {!isEditing && !isGuest && (
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (onToggleHighlight) onToggleHighlight(item.id, !item.highlighted); 
+                  }} 
+                  className={`p-2 transition cursor-pointer ${item.highlighted ? 'text-amber-500 fill-amber-500' : 'text-slate-300 hover:text-amber-500'}`} 
+                  title={item.highlighted ? "Remove Highlight" : "Highlight Activity"}
+                >
+                  <Star className="w-4 h-4" />
+                </button>
+              )}
+
+              {!isEditing && !isGuest && (
+                <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" title="Edit">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+
+              {!isGuest && (
+                <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" title="Delete">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+
+              <div className="text-slate-400 p-1">
+                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
             </div>
           </div>
 

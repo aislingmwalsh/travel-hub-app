@@ -374,6 +374,7 @@ const handleDragEnd = async (result) => {
                           setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
                         } catch (err) {
                           console.error("Error updating highlight status:", err);
+                          alert("Failed to update highlight status.");
                         }
                       }}
                       editTitle={editTitle} setEditTitle={setEditTitle}
