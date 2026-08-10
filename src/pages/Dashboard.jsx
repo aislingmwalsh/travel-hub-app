@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Settings, Calendar, MapPin, ArrowRight } from 'lucide-react';
-import TripAdminModal from './TripAdminModal';
+import TripAdminModal from '..components/TripAdminModal';
 
 export default function Dashboard({ onSelectTrip, userRole = 'Owner' }) {
   const [trips, setTrips] = useState([]);
