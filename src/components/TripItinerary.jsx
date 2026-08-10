@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Settings, Inbox } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -60,8 +60,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [cost, setCost] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Collapsed Days State Tracker (Record of date strings that are closed)
+  // Collapsed Days & Unscheduled Pool Toggles
   const [collapsedDays, setCollapsedDays] = useState({});
+  const [isUnscheduledOpen, setIsUnscheduledOpen] = useState(true);
 
   const toggleDayCollapse = (dateStr) => {
     setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
@@ -71,10 +72,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
   const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
-
-  useEffect(() => {
-    if (effectiveStartDate && !selectedDate) setSelectedDate(effectiveStartDate);
-  }, [effectiveStartDate, selectedDate]);
 
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [editingCardId, setEditingCardId] = useState(null);
@@ -98,7 +95,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     async function fetchData() {
       if (!tripId) return;
       try {
-        const q = query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc"));
+        const q = query(collection(db, "trips", tripId, "itinerary"), orderBy("createdAt", "asc"));
         const snap = await getDocs(q);
         setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
@@ -167,14 +164,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const handleAddItem = async (e) => {
     e.preventDefault();
     if (isGuest) return;
-    if (!title.trim() || !selectedDate || !location.trim()) return;
+    if (!title.trim() || !location.trim()) return;
 
     setLoading(true);
     try {
       const newItem = {
         title,
         time: `${selectedHour}:${selectedMinute}`,
-        date: selectedDate,
+        date: selectedDate ? selectedDate : null, // Allow null for unscheduled
         category,
         location: location.trim(),
         details: details.trim(),
@@ -188,6 +185,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setLocation('');
       setDetails('');
       setCost('');
+      setSelectedDate('');
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (err) {
@@ -209,30 +207,30 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     }
   };
 
-const handleStartEdit = (item, e) => {
-  e.stopPropagation();
-  if (isGuest) return;
-  setEditingCardId(item.id);
-  setExpandedCardId(item.id); // 👈 THIS ENSURES THE CARD EXPANDS AUTOMATICALLY WHEN EDITING
-  setEditTitle(item.title);
-  setEditDate(item.date || effectiveStartDate);
-  const [h, m] = (item.time || '09:00').split(':');
-  setEditHour(h || '09');
-  setEditMinute(m || '00');
-  setEditCategory(item.category || 'Tour');
-  setEditLocation(item.location || '');
-  setEditDetails(item.details || '');
-  setEditCost(item.cost ? item.cost.toString() : '');
-};
+  const handleStartEdit = (item, e) => {
+    e.stopPropagation();
+    if (isGuest) return;
+    setEditingCardId(item.id);
+    setExpandedCardId(item.id);
+    setEditTitle(item.title);
+    setEditDate(item.date || '');
+    const [h, m] = (item.time || '09:00').split(':');
+    setEditHour(h || '09');
+    setEditMinute(m || '00');
+    setEditCategory(item.category || 'Tour');
+    setEditLocation(item.location || '');
+    setEditDetails(item.details || '');
+    setEditCost(item.cost ? item.cost.toString() : '');
+  };
 
   const handleSaveEdit = async (itemId, e) => {
     e.stopPropagation();
     if (isGuest) return;
-    if (!editTitle.trim() || !editDate) return;
+    if (!editTitle.trim()) return;
 
     const updatedFields = {
       title: editTitle.trim(),
-      date: editDate,
+      date: editDate ? editDate : null,
       time: `${editHour}:${editMinute}`,
       category: editCategory,
       location: editLocation.trim(),
@@ -254,7 +252,9 @@ const handleStartEdit = (item, e) => {
     const { destination, source, draggableId } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
-    const newDate = destination.droppableId;
+    // destination.droppableId can be a date string OR 'unscheduled'
+    const newDate = destination.droppableId === 'unscheduled' ? null : destination.droppableId;
+    
     setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
 
     try {
@@ -263,7 +263,7 @@ const handleStartEdit = (item, e) => {
     } catch (err) {
       console.error("Error updating item date in Firestore:", err);
       alert("Failed to save schedule change.");
-      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
+      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("createdAt", "asc")));
       setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }
   };
@@ -271,10 +271,14 @@ const handleStartEdit = (item, e) => {
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
   const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
   
+  // Separate Unscheduled Items vs Daily Grouped Items
+  const unscheduledItems = itineraryItems.filter(i => !i.date || !sortedDates.includes(i.date));
+  
   const groupedItems = itineraryItems.reduce((groups, item) => {
-    const dateKey = item.date || effectiveStartDate;
-    if (!groups[dateKey]) groups[dateKey] = [];
-    groups[dateKey].push(item);
+    if (item.date && sortedDates.includes(item.date)) {
+      if (!groups[item.date]) groups[item.date] = [];
+      groups[item.date].push(item);
+    }
     return groups;
   }, {});
 
@@ -305,7 +309,7 @@ const handleStartEdit = (item, e) => {
                 onClick={() => setIsAddFormOpen(!isAddFormOpen)}
                 className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
               >
-                <Plus className="w-4 h-4" /> {isAddFormOpen ? 'Close Add Form' : 'Add Activity'}
+                <span>{isAddFormOpen ? 'Close Add Form' : 'Add Activity'}</span>
               </button>
               <button 
                 onClick={() => setIsSettingsOpen(true)}
@@ -318,7 +322,6 @@ const handleStartEdit = (item, e) => {
         </div>
       </div>
 
-      {/* Collapsible Creation Form */}
       {!isGuest && isAddFormOpen && (
         <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn">
           <ItineraryForm 
@@ -338,9 +341,84 @@ const handleStartEdit = (item, e) => {
         </div>
       )}
 
-      {/* Itinerary Feed with Collapsible Daily Cards */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
+          
+          {/* 📦 UNSCHEDULED ACTIVITIES POOL STAGING AREA */}
+          <div className="border border-indigo-200 rounded-2xl overflow-hidden bg-indigo-50/20">
+            <div 
+              onClick={() => setIsUnscheduledOpen(!isUnscheduledOpen)}
+              className="bg-indigo-50 hover:bg-indigo-100/60 px-5 py-3.5 border-b border-indigo-100 flex items-center justify-between cursor-pointer transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <Inbox className="w-4 h-4 text-indigo-600" />
+                <h4 className="font-bold text-indigo-900 text-sm uppercase tracking-wider">Unscheduled Ideas Pool</h4>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200">
+                  {unscheduledItems.length} {unscheduledItems.length === 1 ? 'Idea' : 'Ideas'}
+                </span>
+              </div>
+            </div>
+
+            {isUnscheduledOpen && (
+              <div className="p-4">
+                <Droppable droppableId="unscheduled" isDropDisabled={isGuest}>
+                  {(provided, snapshot) => (
+                    <div 
+                      ref={provided.innerRef} 
+                      {...provided.droppableProps} 
+                      className={`space-y-3 min-h-[70px] transition-colors rounded-xl p-1 ${snapshot.isDraggingOver ? 'bg-indigo-100/50 ring-2 ring-inset ring-indigo-300' : ''}`}
+                    >
+                      {unscheduledItems.length === 0 ? (
+                        <div className="h-16 flex items-center justify-center border border-dashed border-indigo-200 rounded-xl text-xs text-indigo-400 italic">
+                          Drop activities here to keep them unscheduled, or select no date when adding.
+                        </div>
+                      ) : (
+                        unscheduledItems.map((item, index) => (
+                          <ItineraryCard 
+                            key={item.id}
+                            item={item} 
+                            index={index} 
+                            currency={currency}
+                            isExpanded={expandedCardId === item.id}
+                            onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                            isEditing={editingCardId === item.id}
+                            onStartEdit={(e) => handleStartEdit(item, e)}
+                            onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                            onCancelEdit={() => setEditingCardId(null)}
+                            onDelete={(e) => handleDeleteItem(item.id, e)}
+                            onToggleHighlight={async (itemId, newHighlightState) => {
+                              try {
+                                await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                              } catch (err) {
+                                console.error("Error updating highlight status:", err);
+                              }
+                            }}
+                            editTitle={editTitle} setEditTitle={setEditTitle}
+                            editDate={editDate} setEditDate={setEditDate} 
+                            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                            editHour={editHour} setEditHour={setEditHour} 
+                            editMinute={editMinute} setEditMinute={setEditMinute} 
+                            hours={hours} minutes={minutes}
+                            editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                            editCost={editCost} setEditCost={setEditCost}
+                            editLocation={editLocation} setEditLocation={setEditLocation}
+                            editDetails={editDetails} setEditDetails={setEditDetails}
+                            isGuest={isGuest}
+                          />
+                        ))
+                      )}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            )}
+          </div>
+
+          {/* 📅 DAILY ITINERARY FEED */}
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
             const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
@@ -349,7 +427,6 @@ const handleStartEdit = (item, e) => {
 
             return (
               <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                {/* Collapsible Day Header */}
                 <div 
                   onClick={() => toggleDayCollapse(dateStr)}
                   className="bg-slate-100 hover:bg-slate-200/60 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between cursor-pointer transition"
@@ -361,13 +438,9 @@ const handleStartEdit = (item, e) => {
                   <div className="flex items-center gap-3">
                     {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
                     {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
-                    <div className="text-slate-500 p-1">
-                      {isDayCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                    </div>
                   </div>
                 </div>
 
-                {/* Day Content (Droppable list & Map collapsible) */}
                 {!isDayCollapsed && (
                   <div className="p-4 space-y-4">
                     <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
@@ -418,7 +491,6 @@ const handleStartEdit = (item, e) => {
                       )}
                     </Droppable>
 
-                    {/* Collapsible Daily Map View Component */}
                     {items.filter(a => a.location).length > 0 && (
                       <DailyMapView 
                         activities={items} 
