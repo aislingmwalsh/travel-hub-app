@@ -327,71 +327,84 @@ const handleDragEnd = async (result) => {
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           {sortedDates.map(dateStr => {
-            const items = groupedItems[dateStr] || [];
-            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-            const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  const items = groupedItems[dateStr] || [];
+  const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+  const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
-            return (
-              <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
-                  </div>
+  return (
+    <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40 mb-6">
+      <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Calendar className="w-4 h-4 text-blue-600" />
+          <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
+        </div>
+        <div className="flex items-center gap-3">
+          {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
+          {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+        </div>
+      </div>
+
+      {/* 👇 SIDE-BY-SIDE GRID LAYOUT */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:divide-x divide-slate-200">
+        
+        {/* Left Column: Activity List & Droppable Area */}
+        <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
+          {(provided, snapshot) => (
+            <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[150px] transition-colors flex flex-col justify-start ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
+              {items.length === 0 ? (
+                <div className="h-24 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 m-2">
+                  Drop activities here
                 </div>
+              ) : (
+                items.map((item, index) => (
+                  <ItineraryCard 
+                    key={item.id}
+                    item={item} index={index} currency={currency}
+                    isExpanded={expandedCardId === item.id}
+                    onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                    isEditing={editingCardId === item.id}
+                    onStartEdit={(e) => handleStartEdit(item, e)}
+                    onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                    onCancelEdit={() => setEditingCardId(null)}
+                    onDelete={(e) => handleDeleteItem(item.id, e)}
+                    editTitle={editTitle} setEditTitle={setEditTitle}
+                    editDate={editDate} setEditDate={setEditDate} 
+                    effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                    editHour={editHour} setEditHour={setEditHour} 
+                    editMinute={editMinute} setEditMinute={setEditMinute} 
+                    hours={hours} minutes={minutes}
+                    editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                    editCost={editCost} setEditCost={setEditCost}
+                    editLocation={editLocation} setEditLocation={setEditLocation}
+                    editDetails={editDetails} setEditDetails={setEditDetails}
+                    isGuest={isGuest}
+                  />
+                ))
+              )}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
 
-                <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
-                  {(provided, snapshot) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps} className={`p-3 space-y-3 min-h-[75px] transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300 rounded-b-2xl' : ''}`}>
-                      {items.length === 0 ? (
-                        <div className="h-12 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">Drop activities here</div>
-                      ) : (
-                        items.map((item, index) => (
-                          <ItineraryCard 
-                            key={item.id}
-                            item={item} index={index} currency={currency}
-                            isExpanded={expandedCardId === item.id}
-                            onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                            isEditing={editingCardId === item.id}
-                            onStartEdit={(e) => handleStartEdit(item, e)}
-                            onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                            onCancelEdit={() => setEditingCardId(null)}
-                            onDelete={(e) => handleDeleteItem(item.id, e)}
-                            editTitle={editTitle} setEditTitle={setEditTitle}
-                            editDate={editDate} setEditDate={setEditDate} 
-                            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                            editHour={editHour} setEditHour={setEditHour} 
-                            editMinute={editMinute} setEditMinute={setEditMinute} 
-                            hours={hours} minutes={minutes}
-                            editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                            editCost={editCost} setEditCost={setEditCost}
-                            editLocation={editLocation} setEditLocation={setEditLocation}
-                            editDetails={editDetails} setEditDetails={setEditDetails}
-                            isGuest={isGuest}
-                          />
-                        ))
-                      )}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
+        {/* Right Column: Daily Map View */}
+        <div className="p-4 bg-white flex flex-col justify-center border-t lg:border-t-0 border-slate-200">
+          {items.filter(a => a.location).length > 0 ? (
+            <DailyMapView 
+              activities={items} 
+              currency={currency} 
+              destination={tripDestination} 
+            />
+          ) : (
+            <div className="h-48 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center text-xs text-slate-400 text-center p-4">
+              Add a location to your activities to preview the daily route map.
+            </div>
+          )}
+        </div>
 
-                {/* Daily Map View */}
-                {items.length > 0 && (
-                  <div className="p-4 bg-white border-t border-slate-100">
-                    <DailyMapView 
-                      activities={items} 
-                      currency={currency} 
-                      destination={tripDestination} 
-                    />
-                  </div>
-                )}
-              </div>
-            );
+      </div>
+    </div>
+  );
+})}
           })}
         </div>
       </DragDropContext>
