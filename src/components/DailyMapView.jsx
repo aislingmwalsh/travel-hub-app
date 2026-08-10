@@ -8,96 +8,96 @@ export default function DailyMapView({ activities, currency, destination }) {
   const markersRef = useRef([]);
   const [isMapOpen, setIsMapOpen] = useState(true);
 
+  // Initialize map once on mount
   useEffect(() => {
-    if (!isMapOpen) return;
+    if (!window.google?.maps || !mapRef.current) return;
 
-    // Give the DOM a brief moment to paint the expanded container box
-    const timer = setTimeout(() => {
-      const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
+    const geocoder = new window.google.maps.Geocoder();
 
-      if (!window.google?.maps || !mapRef.current) return;
+    geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
+      let defaultCenter = { lat: 41.9028, lng: 12.4964 };
 
-      const geocoder = new window.google.maps.Geocoder();
+      if (destStatus === 'OK' && destResults[0]) {
+        defaultCenter = destResults[0].geometry.location;
+      }
 
-      geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
-        let defaultCenter = { lat: 41.9028, lng: 12.4964 };
-
-        if (destStatus === 'OK' && destResults[0]) {
-          defaultCenter = destResults[0].geometry.location;
-        }
-
-        // Initialize map instance if not already created
-        if (!mapInstanceRef.current && mapRef.current) {
-          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-            zoom: 14,
-            center: defaultCenter,
-            styles: [
-              { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
-            ]
-          });
-        }
-
-        const map = mapInstanceRef.current;
-        if (map) {
-          window.google.maps.event.trigger(map, 'resize');
-          map.setCenter(defaultCenter);
-        }
-
-        if (validActivities.length === 0) return;
-
-        // Clear old markers
-        markersRef.current.forEach(marker => marker.setMap(null));
-        markersRef.current = [];
-
-        const bounds = new window.google.maps.LatLngBounds();
-
-        validActivities.forEach((activity, index) => {
-          geocoder.geocode({ address: activity.location }, (results, status) => {
-            if (status === 'OK' && results[0]) {
-              const position = results[0].geometry.location;
-              bounds.extend(position);
-
-              const marker = new window.google.maps.Marker({
-                map: map,
-                position: position,
-                label: {
-                  text: String(index + 1),
-                  color: '#ffffff',
-                  fontWeight: 'bold'
-                },
-                title: activity.title
-              });
-
-              const infoWindow = new window.google.maps.InfoWindow({
-                content: `
-                  <div style="font-family: sans-serif; padding: 6px;">
-                    <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
-                    <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
-                    ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
-                  </div>
-                `
-              });
-
-              marker.addListener('click', () => {
-                infoWindow.open(map, marker);
-              });
-
-              markersRef.current.push(marker);
-
-              if (validActivities.length === 1) {
-                map.setCenter(position);
-                map.setZoom(14);
-              } else {
-                map.fitBounds(bounds);
-              }
-            }
-          });
+      if (!mapInstanceRef.current && mapRef.current) {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          zoom: 14,
+          center: defaultCenter,
+          styles: [
+            { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+          ]
         });
-      });
-    }, 150);
+      }
+    });
+  }, [destination]);
 
-    return () => clearTimeout(timer);
-  }, [activities, currency, destination, isMapOpen]);
+  // Update markers and bounds whenever activities change or map is toggled open
+  useEffect(() => {
+    if (!isMapOpen || !mapInstanceRef.current || !window.google?.maps) return;
+
+    const map = mapInstanceRef.current;
+    
+    // Trigger resize when opening so Google Maps recalculates dimensions correctly
+    setTimeout(() => {
+      google.maps.event.trigger(map, 'resize');
+    }, 50);
+
+    const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
+    if (validActivities.length === 0) return;
+
+    const geocoder = new window.google.maps.Geocoder();
+
+    // Clear old markers
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+
+    const bounds = new window.google.maps.LatLngBounds();
+
+    validActivities.forEach((activity, index) => {
+      geocoder.geocode({ address: activity.location }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const position = results[0].geometry.location;
+          bounds.extend(position);
+
+          const marker = new window.google.maps.Marker({
+            map: map,
+            position: position,
+            label: {
+              text: String(index + 1),
+              color: '#ffffff',
+              fontWeight: 'bold'
+            },
+            title: activity.title
+          });
+
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `
+              <div style="font-family: sans-serif; padding: 6px;">
+                <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
+                <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
+                ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
+              </div>
+            `
+          });
+
+          marker.addListener('click', () => {
+            infoWindow.open(map, marker);
+          });
+
+          markersRef.current.push(marker);
+
+          if (validActivities.length === 1) {
+            map.setCenter(position);
+            map.setZoom(14);
+          } else {
+            map.fitBounds(bounds);
+          }
+        }
+      });
+    });
+  }, [activities, currency, isMapOpen]);
 
   if (!activities || activities.filter(a => a.location).length === 0) {
     return null;
@@ -115,11 +115,10 @@ export default function DailyMapView({ activities, currency, destination }) {
         {isMapOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
       </button>
 
-      {isMapOpen && (
-        <div className="p-3 bg-white">
-          <div ref={mapRef} className="w-full h-64 rounded-xl border border-slate-200 overflow-hidden" />
-        </div>
-      )}
+      {/* Map container stays mounted in DOM with CSS display toggling to prevent initialization loss */}
+      <div className={`p-3 bg-white ${isMapOpen ? 'block' : 'hidden'}`}>
+        <div ref={mapRef} className="w-full h-64 rounded-xl border border-slate-200 overflow-hidden" />
+      </div>
     </div>
   );
 }
