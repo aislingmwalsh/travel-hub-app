@@ -5,10 +5,10 @@ import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc,
 import { Calendar, Settings } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
-import DailyMapView from './DailyMapView';
 import ItineraryForm from './ItineraryForm';
 import ItineraryCard from './ItineraryCard';
 import CategoryModal from './CategoryModal';
+import DailyMapView from './DailyMapView';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -164,7 +164,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (isGuest) return; // Prevent guests from adding
+    if (isGuest) return;
     if (!title.trim() || !selectedDate || !location.trim()) return;
 
     setLoading(true);
@@ -189,6 +189,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setSelectedMinute('00');
     } catch (err) {
       console.error("Error adding item:", err);
+      alert("Failed to save activity. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -368,15 +369,16 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   )}
                 </Droppable>
 
-                  {items.length > 0 && (
-                    <div className="p-4 bg-white border-t border-slate-100">
-                      <DailyMapView 
-                        activities={items} 
-                        currency={currency} 
-                        destination={tripDestination} // 👈 Pass it down here
-                      />
-                    </div>
-                  )}
+                {/* Daily Map View */}
+                {items.length > 0 && (
+                  <div className="p-4 bg-white border-t border-slate-100">
+                    <DailyMapView 
+                      activities={items} 
+                      currency={currency} 
+                      destination={tripDestination} 
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
