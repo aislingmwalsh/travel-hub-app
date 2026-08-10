@@ -11,8 +11,8 @@ export default function DailyMapView({ activities, currency, destination }) {
   useEffect(() => {
     if (!isMapOpen) return;
 
-    // Use requestAnimationFrame to ensure the DOM node is painted and has dimensions
-    const timer = requestAnimationFrame(() => {
+    // Give the DOM a brief moment to paint the expanded container box
+    const timer = setTimeout(() => {
       const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
 
       if (!window.google?.maps || !mapRef.current) return;
@@ -26,7 +26,7 @@ export default function DailyMapView({ activities, currency, destination }) {
           defaultCenter = destResults[0].geometry.location;
         }
 
-        // Initialize map instance if it doesn't exist yet
+        // Initialize map instance if not already created
         if (!mapInstanceRef.current && mapRef.current) {
           mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
             zoom: 14,
@@ -94,9 +94,9 @@ export default function DailyMapView({ activities, currency, destination }) {
           });
         });
       });
-    });
+    }, 150);
 
-    return () => cancelAnimationFrame(timer);
+    return () => clearTimeout(timer);
   }, [activities, currency, destination, isMapOpen]);
 
   if (!activities || activities.filter(a => a.location).length === 0) {
