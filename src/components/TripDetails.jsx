@@ -18,19 +18,22 @@ export default function TripDetail() {
   // Fetch trip document details from Firestore
   useEffect(() => {
     async function fetchTripDetails() {
+      console.log("1. TripId received:", tripId); // Check if this prints
       if (!tripId) return;
       try {
         const tripRef = doc(db, "trips", tripId);
+        console.log("2. Fetching document...");
         const tripSnap = await getDoc(tripRef);
+        console.log("3. Document fetched, exists?", tripSnap.exists());
+        
         if (tripSnap.exists()) {
           setTripData(tripSnap.data());
-        } else {
-          console.error("Trip not found");
         }
       } catch (error) {
         console.error("Error fetching trip:", error);
       } finally {
         setLoading(false);
+        console.log("4. Loading set to false");
       }
     }
     fetchTripDetails();
