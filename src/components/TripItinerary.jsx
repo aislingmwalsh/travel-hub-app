@@ -315,7 +315,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
                   </div>
                   <div className="flex items-center gap-3">
-                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Day Total: {currency} {dayTotal.toFixed(2)}</span>}
+                    {dayTotal > 0 && (
+                      <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">
+                        Daily Total: {currency} {dayTotal.toFixed(2)}
+                      </span>
+                    )}
                     {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>

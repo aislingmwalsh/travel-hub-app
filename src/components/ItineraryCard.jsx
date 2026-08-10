@@ -57,8 +57,8 @@ export default function ItineraryCard({
               </div>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-center">
-              {!isEditing && <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition" title="Edit"><Edit2 className="w-4 h-4" /></button>}
-              <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition" title="Delete"><Trash2 className="w-4 h-4" /></button>
+              {!isEditing && <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" title="Edit"><Edit2 className="w-4 h-4" /></button>}
+              <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
               <div className="text-slate-400 p-1">{isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
             </div>
           </div>
@@ -69,18 +69,18 @@ export default function ItineraryCard({
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-2">
                     <h6 className="text-xs font-bold text-blue-600 uppercase tracking-wider">Editing Activity</h6>
-                    <button onClick={onCancelEdit} className="text-xs text-slate-400 hover:text-slate-600 font-semibold">Cancel</button>
+                    <button onClick={onCancelEdit} className="text-xs text-slate-400 hover:text-slate-600 font-semibold cursor-pointer">Cancel</button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label><input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                     <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" min={effectiveStartDate} max={effectiveEndDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
-                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label><div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm"><select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none">{hours.map(h => <option key={h} value={h}>{h}</option>)}</select><span>:</span><select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>
-                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label><div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm"><select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{hours.map(h => <option key={h} value={h}>{h}</option>)}</select><span>:</span><select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>
+                    <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
                     <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label><input type="number" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                     <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label><input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                     <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label><textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none" /></div>
                   </div>
-                  <div className="flex justify-end pt-2"><button onClick={onSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
+                  <div className="flex justify-end pt-2"><button onClick={onSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
