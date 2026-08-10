@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings } from 'lucide-react';
+import { Calendar, Settings, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -48,7 +48,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   
-  // Creation Form States
+  // Creation Form States & Collapse Toggle
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
@@ -59,9 +60,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [cost, setCost] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Collapsed Days State Tracker (Record of date strings that are closed)
+  const [collapsedDays, setCollapsedDays] = useState({});
+
+  const toggleDayCollapse = (dateStr) => {
+    setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
+  };
+
   const isGuest = userRole?.toLowerCase() === 'guest';
 
-  // Effective Dates
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
   const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
 
@@ -69,7 +76,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (effectiveStartDate && !selectedDate) setSelectedDate(effectiveStartDate);
   }, [effectiveStartDate, selectedDate]);
 
-  // Expanded card & Editing States
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [editingCardId, setEditingCardId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -81,16 +87,13 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [editDetails, setEditDetails] = useState('');
   const [editCost, setEditCost] = useState('');
 
-  // Autocomplete states
   const [predictions, setPredictions] = useState([]);
   const [showPredictions, setShowPredictions] = useState(false);
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Fetch Firestore Data
   useEffect(() => {
     async function fetchData() {
       if (!tripId) return;
@@ -110,7 +113,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     fetchData();
   }, [tripId]);
 
-  // Google Places Service Init
   useEffect(() => {
     function initService() {
       if (window.google?.maps?.places) {
@@ -259,7 +261,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       await updateDoc(itemRef, { date: newDate });
     } catch (err) {
       console.error("Error updating item date in Firestore:", err);
-      alert("Failed to save schedule change. Please check your permissions or network connection.");
+      alert("Failed to save schedule change.");
       const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("date", "asc")));
       setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }
@@ -276,7 +278,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   }, {});
 
   Object.keys(groupedItems).forEach(d => {
-    // Automatically sort highlighted items to the top of the day's agenda
     groupedItems[d].sort((a, b) => {
       if (a.highlighted && !b.highlighted) return -1;
       if (!a.highlighted && b.highlighted) return 1;
@@ -296,45 +297,62 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
           <p className="text-xs text-slate-500 mt-0.5">Estimated Total Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
         </div>
-        {!isGuest && (
-          <button 
-            onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
-          >
-            <Settings className="w-4 h-4" /> Manage Activity Types
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {!isGuest && (
+            <>
+              <button 
+                onClick={() => setIsAddFormOpen(!isAddFormOpen)}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> {isAddFormOpen ? 'Close Add Form' : 'Add Activity'}
+              </button>
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
+              >
+                <Settings className="w-4 h-4" /> Manage Types
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Creation Form Sub-component (Hidden for Guests) */}
-      {!isGuest && (
-        <ItineraryForm 
-          title={title} setTitle={setTitle}
-          selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-          effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-          selectedHour={selectedHour} setSelectedHour={setSelectedHour}
-          selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
-          category={category} setCategory={setCategory} sortedCategories={sortedCategories}
-          cost={cost} setCost={setCost} currency={currency}
-          location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
-          showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
-          details={details} setDetails={setDetails}
-          loading={loading} dropdownRef={dropdownRef}
-          onAddItem={handleAddItem}
-        />
+      {/* Collapsible Creation Form */}
+      {!isGuest && isAddFormOpen && (
+        <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn">
+          <ItineraryForm 
+            title={title} setTitle={setTitle}
+            selectedDate={selectedDate} setSelectedDate={setSelectedDate}
+            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+            selectedHour={selectedHour} setSelectedHour={setSelectedHour}
+            selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
+            category={category} setCategory={setCategory} sortedCategories={sortedCategories}
+            cost={cost} setCost={setCost} currency={currency}
+            location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
+            showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
+            details={details} setDetails={setDetails}
+            loading={loading} dropdownRef={dropdownRef}
+            onAddItem={handleAddItem}
+          />
+        </div>
       )}
 
-      {/* Itinerary Feed with Safe Unified Droppable Tree & Highlight Pinning */}
+      {/* Itinerary Feed with Collapsible Daily Cards */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
             const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+            const isDayCollapsed = collapsedDays[dateStr];
 
             return (
               <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
-                <div className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+                {/* Collapsible Day Header */}
+                <div 
+                  onClick={() => toggleDayCollapse(dateStr)}
+                  className="bg-slate-100 hover:bg-slate-200/60 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between cursor-pointer transition"
+                >
                   <div className="flex items-center gap-2.5">
                     <Calendar className="w-4 h-4 text-blue-600" />
                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
@@ -342,77 +360,79 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   <div className="flex items-center gap-3">
                     {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
                     {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                    <div className="text-slate-500 p-1">
+                      {isDayCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4">
-                  {/* Single Unified Droppable List for Error-Free Drag-and-Drop */}
-                  <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
-                    {(provided, snapshot) => (
-                      <div ref={provided.innerRef} {...provided.droppableProps} className={`space-y-3 min-h-[100px] transition-colors rounded-xl p-1 ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
-                        {items.length === 0 ? (
-                          <div className="h-20 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
-                            Drop activities here
-                          </div>
-                        ) : (
-                          items.map((item, index) => (
-                            <ItineraryCard 
-                              key={item.id}
-                              item={item} 
-                              index={index} 
-                              currency={currency}
-                              isExpanded={expandedCardId === item.id}
-                              onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                              isEditing={editingCardId === item.id}
-                              onStartEdit={(e) => handleStartEdit(item, e)}
-                              onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                              onCancelEdit={() => setEditingCardId(null)}
-                              onDelete={(e) => handleDeleteItem(item.id, e)}
-                              onToggleHighlight={async (itemId, newHighlightState) => {
-                                try {
-                                  await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                                  setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                                } catch (err) {
-                                  console.error("Error updating highlight status:", err);
-                                }
-                              }}
-                              editTitle={editTitle} setEditTitle={setEditTitle}
-                              editDate={editDate} setEditDate={setEditDate} 
-                              effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                              editHour={editHour} setEditHour={setEditHour} 
-                              editMinute={editMinute} setEditMinute={setEditMinute} 
-                              hours={hours} minutes={minutes}
-                              editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                              editCost={editCost} setEditCost={setEditCost}
-                              editLocation={editLocation} setEditLocation={setEditLocation}
-                              editDetails={editDetails} setEditDetails={setEditDetails}
-                              isGuest={isGuest}
-                            />
-                          ))
-                        )}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
+                {/* Day Content (Droppable list & Map collapsible) */}
+                {!isDayCollapsed && (
+                  <div className="p-4 space-y-4">
+                    <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
+                      {(provided, snapshot) => (
+                        <div ref={provided.innerRef} {...provided.droppableProps} className={`space-y-3 min-h-[90px] transition-colors rounded-xl p-1 ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
+                          {items.length === 0 ? (
+                            <div className="h-20 flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
+                              Drop activities here
+                            </div>
+                          ) : (
+                            items.map((item, index) => (
+                              <ItineraryCard 
+                                key={item.id}
+                                item={item} 
+                                index={index} 
+                                currency={currency}
+                                isExpanded={expandedCardId === item.id}
+                                onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                                isEditing={editingCardId === item.id}
+                                onStartEdit={(e) => handleStartEdit(item, e)}
+                                onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                                onCancelEdit={() => setEditingCardId(null)}
+                                onDelete={(e) => handleDeleteItem(item.id, e)}
+                                onToggleHighlight={async (itemId, newHighlightState) => {
+                                  try {
+                                    await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                    setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                                  } catch (err) {
+                                    console.error("Error updating highlight status:", err);
+                                  }
+                                }}
+                                editTitle={editTitle} setEditTitle={setEditTitle}
+                                editDate={editDate} setEditDate={setEditDate} 
+                                effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                                editHour={editHour} setEditHour={setEditHour} 
+                                editMinute={editMinute} setEditMinute={setEditMinute} 
+                                hours={hours} minutes={minutes}
+                                editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                                editCost={editCost} setEditCost={setEditCost}
+                                editLocation={editLocation} setEditLocation={setEditLocation}
+                                editDetails={editDetails} setEditDetails={setEditDetails}
+                                isGuest={isGuest}
+                              />
+                            ))
+                          )}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
 
-                  {/* Daily Route Map View Sits Cleanly Underneath */}
-                  {items.filter(a => a.location).length > 0 && (
-                    <div className="pt-2">
+                    {/* Collapsible Daily Map View Component */}
+                    {items.filter(a => a.location).length > 0 && (
                       <DailyMapView 
                         activities={items} 
                         currency={currency} 
                         destination={tripDestination} 
                       />
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </DragDropContext>
 
-      {/* Category Management Modal */}
       <CategoryModal 
         tripId={tripId}
         isOpen={isSettingsOpen}
