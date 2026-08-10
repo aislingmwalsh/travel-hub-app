@@ -73,7 +73,8 @@ export default function TripDetails({ tripId, onBack }) {
         tripStartDate={tripData.startDate} 
         tripEndDate={tripData.endDate} 
         currency={tripData.currency || 'EUR'}
-        userRole={currentUserRole} 
+        userRole={currentUserRole}
+        tripDestination={tripData.destination} 
       />
 
       <TripMembersModal 

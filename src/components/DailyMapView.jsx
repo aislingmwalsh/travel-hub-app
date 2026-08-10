@@ -1,81 +1,90 @@
 // src/components/DailyMapView.jsx
 import React, { useEffect, useRef } from 'react';
 
-export default function DailyMapView({ activities, currency }) {
+export default function DailyMapView({ activities, currency, destination }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
 
   useEffect(() => {
-    // Filter activities that have valid locations
     const validActivities = activities.filter(act => act.location && act.location.trim() !== '');
 
-    if (!window.google?.maps || validActivities.length === 0) return;
+    if (!window.google?.maps) return;
 
-    // Initialize Map if not already created
-    if (!mapInstanceRef.current && mapRef.current) {
-      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        zoom: 13,
-        center: { lat: 53.3498, lng: -6.2603 }, // Default fallback (e.g., Dublin)
-        styles: [
-          { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
-        ]
-      });
-    }
-
-    const map = mapInstanceRef.current;
-
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
-
-    // Use Geocoder to convert location text strings into geographic coordinates
     const geocoder = new window.google.maps.Geocoder();
-    const bounds = new window.google.maps.LatLngBounds();
 
-    validActivities.forEach((activity, index) => {
-      geocoder.geocode({ address: activity.location }, (results, status) => {
-        if (status === 'OK' && results[0]) {
-          const position = results[0].geometry.location;
-          bounds.extend(position);
+    // 1. First, geocode the general trip destination (e.g. Rome) to get a correct default center
+    geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
+      let defaultCenter = { lat: 41.9028, lng: 12.4964 }; // Fallback to Rome if needed
 
-          // Create a custom marker for the activity
-          const marker = new window.google.maps.Marker({
-            map: map,
-            position: position,
-            label: {
-              text: String(index + 1),
-              color: '#ffffff',
-              fontWeight: 'bold'
-            },
-            title: activity.title
-          });
+      if (destStatus === 'OK' && destResults[0]) {
+        defaultCenter = destResults[0].geometry.location;
+      }
 
-          // Optional info window when clicking a marker
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div style="font-family: sans-serif; padding: 4px;">
-                <h4 style="font-weight: bold; margin: 0 0 4px 0;">${activity.title}</h4>
-                <p style="margin: 0; font-size: 12px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
-                ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
-              </div>
-            `
-          });
+      // Initialize Map if not already created
+      if (!mapInstanceRef.current && mapRef.current) {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          zoom: 13,
+          center: defaultCenter,
+          styles: [
+            { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+          ]
+        });
+      }
 
-          marker.addListener('click', () => {
-            infoWindow.open(map, marker);
-          });
+      const map = mapInstanceRef.current;
+      map.setCenter(defaultCenter);
 
-          markersRef.current.push(marker);
+      if (validActivities.length === 0) return;
 
-          // Fit map bounds to show all markers for the day
-          if (markersRef.current.length === validActivities.length) {
-            map.fitBounds(bounds);
+      // Clear existing markers
+      markersRef.current.forEach(marker => marker.setMap(null));
+      markersRef.current = [];
+
+      const bounds = new window.google.maps.LatLngBounds();
+
+      // 2. Geocode each activity location
+      validActivities.forEach((activity, index) => {
+        geocoder.geocode({ address: activity.location }, (results, status) => {
+          if (status === 'OK' && results[0]) {
+            const position = results[0].geometry.location;
+            bounds.extend(position);
+
+            const marker = new window.google.maps.Marker({
+              map: map,
+              position: position,
+              label: {
+                text: String(index + 1),
+                color: '#ffffff',
+                fontWeight: 'bold'
+              },
+              title: activity.title
+            });
+
+            const infoWindow = new window.google.maps.InfoWindow({
+              content: `
+                <div style="font-family: sans-serif; padding: 4px;">
+                  <h4 style="font-weight: bold; margin: 0 0 4px 0;">${activity.title}</h4>
+                  <p style="margin: 0; font-size: 12px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
+                  ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
+                </div>
+              `
+            });
+
+            marker.addListener('click', () => {
+              infoWindow.open(map, marker);
+            });
+
+            markersRef.current.push(marker);
+
+            if (markersRef.current.length === validActivities.length) {
+              map.fitBounds(bounds);
+            }
           }
-        }
+        });
       });
     });
-  }, [activities, currency]);
+  }, [activities, currency, destination]);
 
   if (!activities || activities.filter(a => a.location).length === 0) {
     return (

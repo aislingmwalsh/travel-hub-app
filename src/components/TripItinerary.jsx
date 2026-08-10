@@ -44,7 +44,7 @@ function getTripDateRange(startDateStr, endDateStr) {
   return dates;
 }
 
-export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest' }) {
+export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest', tripDestination }) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   
@@ -368,17 +368,15 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   )}
                 </Droppable>
 
-                import DailyMapView from './DailyMapView';
-
-                  // Inside your daily date card mapping loop:
-                  <div className="p-5 space-y-4">
-                    {/* Render your draggable activity cards here... */}
-                    
-                    {/* Render the Map View for this specific day */}
-                    <div className="pt-4 border-t border-slate-100">
-                      <DailyMapView activities={items} currency={currency} />
+                  {items.length > 0 && (
+                    <div className="p-4 bg-white border-t border-slate-100">
+                      <DailyMapView 
+                        activities={items} 
+                        currency={currency} 
+                        destination={tripDestination} // 👈 Pass it down here
+                      />
                     </div>
-                  </div>
+                  )}
               </div>
             );
           })}
