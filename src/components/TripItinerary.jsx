@@ -357,28 +357,38 @@ const handleDragEnd = async (result) => {
                 </div>
               ) : (
                 items.map((item, index) => (
-                  <ItineraryCard 
-                    key={item.id}
-                    item={item} index={index} currency={currency}
-                    isExpanded={expandedCardId === item.id}
-                    onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                    isEditing={editingCardId === item.id}
-                    onStartEdit={(e) => handleStartEdit(item, e)}
-                    onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                    onCancelEdit={() => setEditingCardId(null)}
-                    onDelete={(e) => handleDeleteItem(item.id, e)}
-                    editTitle={editTitle} setEditTitle={setEditTitle}
-                    editDate={editDate} setEditDate={setEditDate} 
-                    effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                    editHour={editHour} setEditHour={setEditHour} 
-                    editMinute={editMinute} setEditMinute={setEditMinute} 
-                    hours={hours} minutes={minutes}
-                    editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                    editCost={editCost} setEditCost={setEditCost}
-                    editLocation={editLocation} setEditLocation={setEditLocation}
-                    editDetails={editDetails} setEditDetails={setEditDetails}
-                    isGuest={isGuest}
-                  />
+                  /* 👇 WRAP IT IN A DIV THAT CHECKS IF IT'S HIGHLIGHTED */
+                  <div key={item.id} className={`${item.highlighted ? 'col-span-full' : ''}`}>
+                    <ItineraryCard 
+                      item={item} index={index} currency={currency}
+                      isExpanded={expandedCardId === item.id}
+                      onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                      isEditing={editingCardId === item.id}
+                      onStartEdit={(e) => handleStartEdit(item, e)}
+                      onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                      onCancelEdit={() => setEditingCardId(null)}
+                      onDelete={(e) => handleDeleteItem(item.id, e)}
+                      onToggleHighlight={async (itemId, newHighlightState) => {
+                        try {
+                          await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                          setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                        } catch (err) {
+                          console.error("Error updating highlight status:", err);
+                        }
+                      }}
+                      editTitle={editTitle} setEditTitle={setEditTitle}
+                      editDate={editDate} setEditDate={setEditDate} 
+                      effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                      editHour={editHour} setEditHour={setEditHour} 
+                      editMinute={editMinute} setEditMinute={setEditMinute} 
+                      hours={hours} minutes={minutes}
+                      editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                      editCost={editCost} setEditCost={setEditCost}
+                      editLocation={editLocation} setEditLocation={setEditLocation}
+                      editDetails={editDetails} setEditDetails={setEditDetails}
+                      isGuest={isGuest}
+                    />
+                  </div>
                 ))
               )}
               {provided.placeholder}

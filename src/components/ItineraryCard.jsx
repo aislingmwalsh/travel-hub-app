@@ -1,6 +1,6 @@
 // src/components/ItineraryCard.jsx
 import React from 'react';
-import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save } from 'lucide-react';
+import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 
 const CATEGORY_COLORS = {
@@ -57,6 +57,23 @@ export default function ItineraryCard({
               </div>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-center">
+              {/* ⭐ ADD THIS HIGHLIGHT STAR BUTTON HERE */}
+                {!isEditing && (
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      onToggleHighlight(item.id, !item.highlighted); 
+                    }} 
+                    className={`p-2 transition cursor-pointer ${
+                      item.highlighted 
+                        ? 'text-amber-500 fill-amber-500' 
+                        : 'text-slate-300 hover:text-amber-500'
+                    }`} 
+                    title={item.highlighted ? "Remove Highlight" : "Highlight Activity"}
+                  >
+                    <Star className="w-4 h-4" />
+                  </button>
+                )}
               {!isEditing && <button onClick={onStartEdit} className="text-slate-400 hover:text-blue-600 p-2 transition cursor-pointer" title="Edit"><Edit2 className="w-4 h-4" /></button>}
               <button onClick={onDelete} className="text-slate-400 hover:text-red-500 p-2 transition cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
               <div className="text-slate-400 p-1">{isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
