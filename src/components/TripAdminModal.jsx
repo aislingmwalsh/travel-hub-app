@@ -1,10 +1,10 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus } from 'lucide-react';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle } from 'lucide-react';
 
-export default function TripAdminModal({ isOpen, onClose, currentUser }) {
+export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState('');
   const [activeTab, setActiveTab] = useState('members');
@@ -108,7 +108,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
       await updateDoc(tripRef, { members: updatedMembers });
 
       setMembersMap(updatedMembers);
-      // Update local state in authorizedTrips
       setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
     } catch (err) {
       console.error("Error updating role:", err);
@@ -141,7 +140,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
 
     const emailTrimmed = inviteEmail.trim().toLowerCase();
     try {
-      // Use email as the identifier key in the map for invited users without known UIDs yet
       const updatedMembers = {
         ...membersMap,
         [emailTrimmed]: {
@@ -160,6 +158,31 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
     } catch (err) {
       console.error("Error adding member:", err);
       alert("Failed to add collaborator.");
+    }
+  };
+
+  // Handle Deleting / Canceling Trip
+  const handleDeleteTrip = async () => {
+    if (!isOwner) return;
+    const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
+    const tripTitle = currentTrip ? currentTrip.title : 'this trip';
+
+    const confirmed = window.confirm(`Are you sure you want to cancel/delete "${tripTitle}"? This will permanently delete all itinerary activities and vault links.`);
+    if (!confirmed) return;
+
+    try {
+      // Delete subcollection documents first if needed, then delete main trip document
+      await deleteDoc(doc(db, "trips", selectedTripId));
+      
+      // Update parent component state if callback provided
+      if (onDeleteTrip) onDeleteTrip(selectedTripId);
+
+      alert("Trip deleted successfully.");
+      onClose();
+      window.location.reload(); // Refresh to update dashboard
+    } catch (err) {
+      console.error("Error deleting trip:", err);
+      alert("Failed to delete trip.");
     }
   };
 
@@ -194,7 +217,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
 
   if (!isOpen) return null;
 
-  // Format member entries for rendering
   const memberEntries = Object.entries(membersMap).map(([key, val]) => {
     const role = typeof val === 'object' ? val?.role : val;
     const email = typeof val === 'object' ? val?.email : (key.includes('@') ? key : (key === currentUser.uid ? currentUser.email : `User (${key.substring(0, 6)}...)`));
@@ -213,7 +235,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-900 text-lg">Settings & Vault</h3>
-            <p className="text-xs text-slate-500">Manage members and reference documents across your managed trips</p>
+            <p className="text-xs text-slate-500">Manage members, reference documents, and trip settings</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
             <X className="w-5 h-5 text-slate-500" />
@@ -339,6 +361,28 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
                       ))}
                     </div>
                   </div>
+
+                  {/* 🚨 DANGER ZONE: DELETE TRIP */}
+                  {isOwner && (
+                    <div className="pt-6 border-t border-red-100 space-y-3">
+                      <h4 className="font-bold text-red-600 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4" /> Danger Zone
+                      </h4>
+                      <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-bold text-red-900 text-xs">Cancel & Delete This Trip</p>
+                          <p className="text-[11px] text-red-700">Permanently removes this trip, all itinerary items, and vault documents.</p>
+                        </div>
+                        <button 
+                          onClick={handleDeleteTrip}
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete Trip
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
 
