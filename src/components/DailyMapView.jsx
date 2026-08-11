@@ -81,7 +81,6 @@ export default function DailyMapView({ activities, currency, destination }) {
       const location = String(act.location || '').trim();
       return location && location.length > 2 && !/^https?:\/\//i.test(location) && location !== 'N/A';
     });
-    console.log('DailyMapView validActivities:', validActivities);
     if (validActivities.length === 0) return;
 
     const geocoder = new window.google.maps.Geocoder();
@@ -101,7 +100,6 @@ export default function DailyMapView({ activities, currency, destination }) {
 
       return new Promise((resolve) => {
         geocoder.geocode({ address: normalizedLocation }, (results, status) => {
-          console.log('Geocode check:', { location: normalizedLocation, status, resultCount: results?.length || 0, firstResult: results?.[0]?.formatted_address || null });
           const resolved = status === 'OK' && results && results[0] ? results[0].geometry.location : null;
           geocodeCacheRef.current.set(normalizedLocation, resolved);
           resolve(resolved);
