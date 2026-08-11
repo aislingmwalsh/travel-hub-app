@@ -1,8 +1,8 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe } from 'lucide-react';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus } from 'lucide-react';
 
 export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
@@ -32,14 +32,13 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
 
           const memberRole = tripData.members && tripData.members[currentUser.uid];
 
-          // If user is in the members map or is creator, show in admin modal
           if (memberRole || tripData.createdBy === currentUser.uid) {
             tripList.push({
               id: tripId,
               title: tripData.title || 'Untitled Trip',
               destination: tripData.destination || '',
               userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
-              members: tripData.members || {}
+              members: tripData.members || { [currentUser.uid]: 'owner' } // Fallback to include creator if map is missing
             });
           }
         }
@@ -68,14 +67,18 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
         const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
         if (currentTrip) {
           setSelectedTripRole(currentTrip.userRole);
-          setMembersMap(currentTrip.members || {});
+          // Ensure members map always has at least the creator if empty
+          setMembersMap(currentTrip.members && Object.keys(currentTrip.members).length > 0 
+            ? currentTrip.members 
+            : { [currentUser.uid]: 'owner' }
+          );
         }
       } catch (err) {
-        console.error("Error fetching trip vault links:", err);
+        console.error("Error fetching trip details:", err);
       }
     }
     fetchTripDetails();
-  }, [selectedTripId, authorizedTrips]);
+  }, [selectedTripId, authorizedTrips, currentUser]);
 
   const handleTripSelect = (e) => {
     const tripId = e.target.value;
@@ -83,7 +86,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
     const trip = authorizedTrips.find(t => t.id === tripId);
     if (trip) {
       setSelectedTripRole(trip.userRole);
-      setMembersMap(trip.members || {});
+      setMembersMap(trip.members && Object.keys(trip.members).length > 0 
+        ? trip.members 
+        : { [currentUser.uid]: 'owner' }
+      );
     }
   };
 
@@ -123,7 +129,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   // Convert members object to array for mapping
   const memberEntries = Object.entries(membersMap).map(([uid, role]) => ({
     uid,
-    role: role.toUpperCase()
+    role: typeof role === 'string' ? role.toUpperCase() : 'MEMBER'
   }));
 
   return (
