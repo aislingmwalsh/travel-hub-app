@@ -6,6 +6,16 @@ import { Calendar, MapPin, Edit3, Save, X, Tag, Camera } from 'lucide-react';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
+// Helper to get the next calendar day string (YYYY-MM-DD)
+function getNextDay(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function TripHeader({ tripId, tripData, userRole, onTripUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(tripData.title || '');
@@ -16,10 +26,20 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const [currency, setCurrency] = useState(tripData.currency || 'EUR');
   const [photoAlbumUrl, setPhotoAlbumUrl] = useState(tripData.photoAlbumUrl || '');
 
+  // Handle start date change and auto-default end date to the next day
+  const handleStartDateChange = (e) => {
+    const newStart = e.target.value;
+    setStartDate(newStart);
+    
+    // If end date is empty or now earlier than the new start date, default it to start date + 1 day
+    if (!endDate || endDate < newStart) {
+      setEndDate(getNextDay(newStart));
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
 
-    // Validate that end date is not before start date
     if (startDate && endDate && endDate < startDate) {
       alert("The End Date cannot be earlier than the Start Date.");
       return;
@@ -31,7 +51,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
         title, 
         destination, 
         startDate, 
-        endDate, 
+        endDate: endDate || startDate, 
         status, 
         currency, 
         photoAlbumUrl: photoAlbumUrl.trim() 
@@ -118,7 +138,13 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Start Date</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={handleStartDateChange} 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" 
+              />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
@@ -126,7 +152,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
                 type="date" 
                 value={endDate} 
                 onChange={(e) => setEndDate(e.target.value)} 
-                min={startDate} // Constrains selection to dates on or after start date
+                min={startDate} 
                 required 
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" 
               />
