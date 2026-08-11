@@ -242,12 +242,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setEditPaidInAdvance(Boolean(item.paidInAdvance));
   };
 
-  const handleSaveEdit = async (itemId, e) => {
-    if (e) e.stopPropagation();
+  const handleSaveEdit = async (itemId, paidFlag) => {
     if (isGuest) return;
     if (!editTitle.trim()) return;
 
-    const itemToUpdate = itineraryItems.find(i => i.id === itemId);
     const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
@@ -257,13 +255,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       location: editLocation.trim(),
       details: editDetails.trim(),
       cost: editCost ? parseFloat(editCost) : 0,
-      paidInAdvance: Boolean(editPaidInAdvance)
+      paidInAdvance: Boolean(paidFlag)
     };
 
     try {
       await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), updatedFields);
       setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, ...updatedFields } : i));
       setEditingCardId(null);
+      setEditPaidInAdvance(false);
     } catch (err) {
       console.error("Error saving edit:", err);
     }
@@ -501,7 +500,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               isEditing={editingCardId === item.id}
                               onStartEdit={(e) => handleStartEdit(item, e)}
                               onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                              onCancelEdit={() => setEditingCardId(null)}
+                              onCancelEdit={() => { setEditingCardId(null); setEditPaidInAdvance(false); }}
                               onDelete={(e) => handleDeleteItem(item.id, e)}
                               onToggleHighlight={async (itemId, newHighlightState) => {
                                 try {
@@ -509,6 +508,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                   setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
                                 } catch (err) { console.error(err); }
                               }}
+                              onSaveEdit={(paidFlag) => handleSaveEdit(item.id, paidFlag)}
                               editPaidInAdvance={editPaidInAdvance} setEditPaidInAdvance={setEditPaidInAdvance}
                               editTitle={editTitle} setEditTitle={setEditTitle}
                               editDate={editDate} setEditDate={setEditDate} 
