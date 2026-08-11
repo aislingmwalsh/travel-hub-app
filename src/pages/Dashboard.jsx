@@ -43,51 +43,26 @@ export default function Dashboard({ user, onSelectTrip }) {
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
-    async function fetchUserTrips() {
-      if (!user) return;
+    async function fetchTrips() {
       try {
         const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
         const snap = await getDocs(q);
         
-        const authorizedTrips = [];
+        const tripList = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          userRole: 'Owner' 
+        }));
 
-        for (const tripDoc of snap.docs) {
-          const tripId = tripDoc.id;
-          const tripData = tripDoc.data();
-
-          // Fetch members subcollection
-          const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
-          const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-          // Check if user is in members list
-          const userMemberRecord = membersList.find(m => 
-            (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
-            m.id === user.uid ||
-            m.uid === user.uid
-          );
-
-          // Check if user is the direct creator / owner on the main trip document
-          const isCreator = tripData.createdBy === user.uid || tripData.ownerId === user.uid || tripData.userId === user.uid;
-
-          // Include trip if user has a member record OR is the creator OR if the trip has no members subcollection yet (legacy trips)
-          if (userMemberRecord || isCreator || membersList.length === 0) {
-            authorizedTrips.push({
-              id: tripId,
-              ...tripData,
-              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
-            });
-          }
-        }
-
-        setTrips(authorizedTrips);
+        setTrips(tripList);
       } catch (err) {
-        console.error("Error fetching user trips:", err);
+        console.error("Error fetching trips:", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchUserTrips();
-  }, [user]);
+    fetchTrips();
+  }, []);
 
   const filteredTrips = trips.filter(trip => {
     const today = new Date().toISOString().split('T')[0];
@@ -139,7 +114,7 @@ export default function Dashboard({ user, onSelectTrip }) {
       {filteredTrips.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
           <p className="text-sm font-semibold text-slate-700">No trips found matching this filter</p>
-          <p className="text-xs text-slate-400">You do not have any trips in this category.</p>
+          <p className="text-xs text-slate-400">Create your first trip to start planning.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
