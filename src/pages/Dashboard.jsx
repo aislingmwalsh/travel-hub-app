@@ -7,7 +7,7 @@ import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
 export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'past'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     async function fetchUserTrips() {
@@ -17,9 +17,7 @@ export default function Dashboard({ user, onSelectTrip }) {
         const snap = await getDocs(q);
         
         const authorizedTrips = [];
-        const today = new Date().toISOString().split('T')[0];
 
-        // Check membership for each trip
         for (const tripDoc of snap.docs) {
           const tripId = tripDoc.id;
           const tripData = tripDoc.data();
@@ -27,17 +25,21 @@ export default function Dashboard({ user, onSelectTrip }) {
           const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
           const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-          // Check if current user is part of this trip (by email or uid)
-          const isMember = membersList.some(m => 
+          // Check membership by email, UID, or if user is listed as creator/owner
+          const userMemberRecord = membersList.find(m => 
             (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
-            m.id === user.uid
+            m.id === user.uid ||
+            m.uid === user.uid
           );
 
-          if (isMember) {
+          // Fallback: If no members records match but user created it or trip has no members yet, allow viewing
+          const isCreator = tripData.createdBy === user.uid || tripData.ownerId === user.uid;
+          
+          if (userMemberRecord || isCreator || membersList.length === 0) {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              userRole: membersList.find(m => m.email?.toLowerCase() === user.email?.toLowerCase() || m.id === user.uid)?.role || 'Guest'
+              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
             });
           }
         }

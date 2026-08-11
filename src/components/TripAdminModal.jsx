@@ -18,7 +18,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Booking');
 
-  // Fetch all trips where user is Owner or Collaborator
   useEffect(() => {
     if (!isOpen || !currentUser) return;
 
@@ -34,18 +33,19 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
           const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
           const memberDocs = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           
-          // Match current user against members by email or UID
           const userMemberRecord = memberDocs.find(m => 
-            ((m.email && m.email.toLowerCase() === currentUser.email?.toLowerCase()) || m.id === currentUser.uid) &&
-            (m.role === 'Owner' || m.role === 'Collaborator')
+            ((m.email && m.email.toLowerCase() === currentUser.email?.toLowerCase()) || m.id === currentUser.uid || m.uid === currentUser.uid) &&
+            (m.role === 'Owner' || m.role === 'Collaborator' || !m.role)
           );
 
-          if (userMemberRecord) {
+          const isCreator = tripData.createdBy === currentUser.uid || tripData.ownerId === currentUser.uid;
+
+          if (userMemberRecord || isCreator || memberDocs.length === 0) {
             tripsList.push({
               id: tripId,
               title: tripData.title || 'Untitled Trip',
               destination: tripData.destination || '',
-              userRole: userMemberRecord.role
+              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
             });
           }
         }
@@ -62,7 +62,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
     fetchAuthorizedTrips();
   }, [isOpen, currentUser]);
 
-  // Fetch subcollections when selectedTripId changes
   useEffect(() => {
     if (!selectedTripId) return;
 
