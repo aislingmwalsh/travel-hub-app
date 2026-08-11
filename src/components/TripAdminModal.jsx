@@ -1,9 +1,10 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
-// Add Tag to your imports from 'lucide-react':
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag } from 'lucide-react';
+
+const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
 export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
@@ -23,11 +24,16 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Booking');
 
+  // Universal Categories State
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [newCatName, setNewCatName] = useState('');
+
   useEffect(() => {
     if (!isOpen || !currentUser) return;
 
-    async function fetchAuthorizedTrips() {
+    async function fetchAdminData() {
       try {
+        // Fetch Trips
         const snap = await getDocs(collection(db, "trips"));
         const tripList = [];
 
@@ -55,11 +61,19 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           setSelectedTripRole(tripList[0].userRole);
           setMembersMap(tripList[0].members);
         }
+
+        // Fetch Global Categories
+        const catSnap = await getDoc(doc(db, "settings", "global_categories"));
+        if (catSnap.exists() && catSnap.data().list) {
+          setCategories(catSnap.data().list);
+        } else {
+          await setDoc(doc(db, "settings", "global_categories"), { list: DEFAULT_CATEGORIES });
+        }
       } catch (err) {
-        console.error("Error fetching trips for admin modal:", err);
+        console.error("Error fetching admin data:", err);
       }
     }
-    fetchAuthorizedTrips();
+    fetchAdminData();
   }, [isOpen, currentUser]);
 
   useEffect(() => {
@@ -94,7 +108,6 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
   const isOwner = selectedTripRole?.toUpperCase() === 'OWNER';
 
-  // Handle Role Change
   const handleRoleChange = async (targetKey, newRole) => {
     if (!isOwner) return;
     try {
@@ -112,11 +125,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
     } catch (err) {
       console.error("Error updating role:", err);
-      alert("Failed to update role.");
     }
   };
 
-  // Handle Removing Member
   const handleRemoveMember = async (targetKey) => {
     if (!isOwner) return;
     try {
@@ -130,11 +141,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
     } catch (err) {
       console.error("Error removing member:", err);
-      alert("Failed to remove member.");
     }
   };
 
-  // Handle Adding / Inviting Member
   const handleAddMember = async (e) => {
     e.preventDefault();
     if (!inviteEmail.trim() || !isOwner) return;
@@ -143,10 +152,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     try {
       const updatedMembers = {
         ...membersMap,
-        [emailTrimmed]: {
-          role: inviteRole,
-          email: emailTrimmed
-        }
+        [emailTrimmed]: { role: inviteRole, email: emailTrimmed }
       };
 
       const tripRef = doc(db, "trips", selectedTripId);
@@ -158,11 +164,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       alert("Collaborator added successfully!");
     } catch (err) {
       console.error("Error adding member:", err);
-      alert("Failed to add collaborator.");
     }
   };
 
-  // Handle Deleting / Canceling Trip
   const handleDeleteTrip = async () => {
     if (!isOwner) return;
     const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
@@ -172,15 +176,11 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     if (!confirmed) return;
 
     try {
-      // Delete subcollection documents first if needed, then delete main trip document
       await deleteDoc(doc(db, "trips", selectedTripId));
-      
-      // Update parent component state if callback provided
       if (onDeleteTrip) onDeleteTrip(selectedTripId);
-
       alert("Trip deleted successfully.");
       onClose();
-      window.location.reload(); // Refresh to update dashboard
+      window.location.reload();
     } catch (err) {
       console.error("Error deleting trip:", err);
       alert("Failed to delete trip.");
@@ -216,6 +216,35 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     }
   };
 
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    const formatted = newCatName.trim();
+    if (!formatted || categories.includes(formatted)) return;
+
+    const updated = [...categories, formatted].sort((a, b) => a.localeCompare(b));
+    try {
+      await setDoc(doc(db, "settings", "global_categories"), { list: updated });
+      setCategories(updated);
+      setNewCatName('');
+    } catch (err) {
+      console.error("Error saving global category:", err);
+    }
+  };
+
+  const handleDeleteCategory = async (catToDelete) => {
+    if (categories.length <= 1) {
+      alert("You must keep at least one category.");
+      return;
+    }
+    const updated = categories.filter(c => c !== catToDelete);
+    try {
+      await setDoc(doc(db, "settings", "global_categories"), { list: updated });
+      setCategories(updated);
+    } catch (err) {
+      console.error("Error deleting global category:", err);
+    }
+  };
+
   if (!isOpen) return null;
 
   const memberEntries = Object.entries(membersMap).map(([key, val]) => {
@@ -232,11 +261,11 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
         
-        {/* Modal Header */}
+        {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-900 text-lg">Settings & Vault</h3>
-            <p className="text-xs text-slate-500">Manage members, reference documents, and trip settings</p>
+            <p className="text-xs text-slate-500">Manage members, global categories, and trip reference documents</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
             <X className="w-5 h-5 text-slate-500" />
@@ -264,266 +293,208 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 px-6 bg-slate-50/50">
+        <div className="flex border-b border-slate-200 px-6 bg-slate-50/50 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('members')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <Users className="w-4 h-4" /> Travelers & Roles
           </button>
           <button 
-            onClick={() => setActiveTab('categories')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-          >
-            <Tag className="w-4 h-4" /> Activity Types
-          </button>
-          <button 
             onClick={() => setActiveTab('vault')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <LinkIcon className="w-4 h-4" /> Documents & Links Vault
           </button>
+          <button 
+            onClick={() => setActiveTab('categories')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+          >
+            <Tag className="w-4 h-4" /> Activity Types
+          </button>
         </div>
 
-        {/* Tab Content Area */}
+        {/* Content Area */}
         <div className="p-6 overflow-y-auto flex-grow space-y-6">
           
-          {authorizedTrips.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs">
-              No managed trips available.
-            </div>
-          ) : (
-            <>
-              {/* TAB 1: MEMBERS & ROLES */}
-              {activeTab === 'members' && (
-                <div className="space-y-6">
-                  
-                  {/* Add Member Form (Owner Only) */}
-                  {isOwner && (
-                    <form onSubmit={handleAddMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Traveler</h4>
-                      <div className="flex gap-2">
-                        <input 
-                          type="email" 
-                          placeholder="traveler@example.com" 
-                          value={inviteEmail} 
-                          onChange={(e) => setInviteEmail(e.target.value)} 
-                          required 
-                          className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
-                        />
+          {/* TAB 1: MEMBERS */}
+          {activeTab === 'members' && (
+            <div className="space-y-6">
+              {isOwner && (
+                <form onSubmit={handleAddMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Traveler</h4>
+                  <div className="flex gap-2">
+                    <input 
+                      type="email" 
+                      placeholder="traveler@example.com" 
+                      value={inviteEmail} 
+                      onChange={(e) => setInviteEmail(e.target.value)} 
+                      required 
+                      className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                    />
+                    <select 
+                      value={inviteRole} 
+                      onChange={(e) => setInviteRole(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="collaborator">Collaborator</option>
+                      <option value="guest">Guest</option>
+                    </select>
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                      <UserPlus className="w-3.5 h-3.5" /> Add
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
+                <div className="space-y-2">
+                  {memberEntries.map(member => (
+                    <div key={member.key} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <div>
+                        <p className="font-bold text-slate-900 text-xs">{member.email}</p>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {member.key}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-slate-400" />
                         <select 
-                          value={inviteRole} 
-                          onChange={(e) => setInviteRole(e.target.value)}
-                          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                          value={member.role}
+                          disabled={!isOwner}
+                          onChange={(e) => handleRoleChange(member.key, e.target.value)}
+                          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
                         >
                           <option value="owner">Owner</option>
                           <option value="collaborator">Collaborator</option>
                           <option value="guest">Guest</option>
                         </select>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                          <UserPlus className="w-3.5 h-3.5" /> Add
-                        </button>
-                      </div>
-                    </form>
-                  )}
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
-                      <span className="text-xs text-slate-500">{memberEntries.length} Total</span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {memberEntries.map(member => (
-                        <div key={member.key} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                          <div>
-                            <p className="font-bold text-slate-900 text-xs">{member.email}</p>
-                            <span className="text-[10px] text-slate-400 font-mono">ID: {member.key}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-3.5 h-3.5 text-slate-400" />
-                            <select 
-                              value={member.role}
-                              disabled={!isOwner}
-                              onChange={(e) => handleRoleChange(member.key, e.target.value)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
-                            >
-                              <option value="owner">Owner</option>
-                              <option value="collaborator">Collaborator</option>
-                              <option value="guest">Guest</option>
-                            </select>
-
-                            {isOwner && member.key !== currentUser.uid && (
-                              <button 
-                                onClick={() => handleRemoveMember(member.key)}
-                                className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer"
-                                title="Remove Member"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 🚨 DANGER ZONE: DELETE TRIP */}
-                  {isOwner && (
-                    <div className="pt-6 border-t border-red-100 space-y-3">
-                      <h4 className="font-bold text-red-600 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                        <AlertTriangle className="w-4 h-4" /> Danger Zone
-                      </h4>
-                      <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-bold text-red-900 text-xs">Cancel & Delete This Trip</p>
-                          <p className="text-[11px] text-red-700">Permanently removes this trip, all itinerary items, and vault documents.</p>
-                        </div>
-                        <button 
-                          onClick={handleDeleteTrip}
-                          className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete Trip
-                        </button>
+                        {isOwner && member.key !== currentUser.uid && (
+                          <button onClick={() => handleRemoveMember(member.key)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Remove">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                  )}
-
+                  ))}
                 </div>
-              )}
-              {/* TAB 2: ACTIVITY CATEGORIES */}
-              {activeTab === 'categories' && (
-                <div className="space-y-4">
-                  <h4 className="font-bold text-slate-800 text-sm">Universal Activity Types</h4>
-                  <p className="text-xs text-slate-500">Categories added here will be available across all your trips.</p>
-                  
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="New Category Name (e.g. Adventure)" 
-                      id="newCategoryInput"
-                      className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" 
-                    />
-                    <button 
-                      type="button" 
-                      onClick={async () => {
-                        const input = document.getElementById('newCategoryInput');
-                        const val = input.value.trim();
-                        if (!val) return;
-                        // Save universal categories to a global settings document in Firestore or local state
-                        input.value = '';
-                        alert(`Added category: ${val}`);
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                    >
-                      Add Type
+              </div>
+
+              {isOwner && (
+                <div className="pt-6 border-t border-red-100 space-y-3">
+                  <h4 className="font-bold text-red-600 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4" /> Danger Zone
+                  </h4>
+                  <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-red-900 text-xs">Cancel & Delete This Trip</p>
+                      <p className="text-[11px] text-red-700">Permanently removes this trip and its itinerary.</p>
+                    </div>
+                    <button onClick={handleDeleteTrip} className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Trip
                     </button>
                   </div>
                 </div>
               )}
-              {/* TAB 3: DOCUMENTS & LINKS VAULT */}
-              {activeTab === 'vault' && (
-                <div className="space-y-6">
-                  
-                  {/* Add Link Form */}
-                  <form onSubmit={handleAddLink} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                    <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Reference Link</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="md:col-span-2">
-                        <input 
-                          type="text" 
-                          placeholder="Title (e.g. Flight Booking Confirmation)" 
-                          value={linkTitle} 
-                          onChange={(e) => setLinkTitle(e.target.value)} 
-                          required 
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
-                        />
-                      </div>
-                      <div>
-                        <select 
-                          value={linkCategory} 
-                          onChange={(e) => setLinkCategory(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
-                        >
-                          <option value="Booking">Booking</option>
-                          <option value="Flight">Flight</option>
-                          <option value="Hotel">Hotel</option>
-                          <option value="Guide">Guide</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-3">
-                        <input 
-                          type="url" 
-                          placeholder="https://drive.google.com/... or booking URL" 
-                          value={linkUrl} 
-                          onChange={(e) => setLinkUrl(e.target.value)} 
-                          required 
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                        <Plus className="w-3.5 h-3.5" /> Save Link
-                      </button>
-                    </div>
-                  </form>
+            </div>
+          )}
 
-                  {/* Links List */}
-                  <div className="space-y-3">
-                    <h4 className="font-bold text-slate-800 text-sm">Saved Resources & Documents</h4>
-                    {vaultLinks.length === 0 ? (
-                      <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
-                        No reference links added yet for this trip.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {vaultLinks.map(link => (
-                          <div key={link.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                                <Globe className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <p className="font-bold text-slate-900 text-xs">{link.title}</p>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">{link.category}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <a 
-                                href={link.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="p-2 text-slate-400 hover:text-blue-600 transition" 
-                                title="Open Link"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                              <button 
-                                onClick={() => handleDeleteLink(link.id)} 
-                                className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" 
-                                title="Delete"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+          {/* TAB 2: VAULT LINKS */}
+          {activeTab === 'vault' && (
+            <div className="space-y-6">
+              <form onSubmit={handleAddLink} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Reference Link</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <input type="text" placeholder="Title (e.g. Flight Confirmation)" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
                   </div>
-
+                  <div>
+                    <select value={linkCategory} onChange={(e) => setLinkCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer">
+                      <option value="Booking">Booking</option>
+                      <option value="Flight">Flight</option>
+                      <option value="Hotel">Hotel</option>
+                      <option value="Guide">Guide</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-3">
+                    <input type="url" placeholder="https://..." value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                  </div>
                 </div>
-              )}
-            </>
+                <div className="flex justify-end">
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                    <Plus className="w-3.5 h-3.5" /> Save Link
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-800 text-sm">Saved Resources & Documents</h4>
+                {vaultLinks.length === 0 ? (
+                  <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">No reference links added yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {vaultLinks.map(link => (
+                      <div key={link.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Globe className="w-4 h-4" /></div>
+                          <div>
+                            <p className="font-bold text-slate-900 text-xs">{link.title}</p>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">{link.category}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a href={link.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-blue-600 transition" title="Open"><ExternalLink className="w-4 h-4" /></a>
+                          <button onClick={() => handleDeleteLink(link.id)} className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: UNIVERSAL CATEGORIES */}
+          {activeTab === 'categories' && (
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">Universal Activity Types</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Categories added here instantly populate dropdowns across all trips.</p>
+              </div>
+
+              <form onSubmit={handleAddCategory} className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="New Category (e.g. Adventure, Coffee)" 
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  required 
+                  className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                />
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                  <Plus className="w-3.5 h-3.5" /> Add Type
+                </button>
+              </form>
+
+              <div className="space-y-2">
+                {categories.map(cat => (
+                  <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5 text-blue-600" /> {cat}
+                    </span>
+                    <button onClick={() => handleDeleteCategory(cat)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
         </div>
 
-        {/* Modal Footer */}
+        {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button onClick={onClose} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
             Done

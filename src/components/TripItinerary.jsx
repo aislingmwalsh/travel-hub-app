@@ -7,7 +7,6 @@ import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
 import ItineraryCard from './ItineraryCard';
-import CategoryModal from './CategoryModal';
 import DailyMapView from './DailyMapView';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
@@ -94,8 +93,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   useEffect(() => {
     async function fetchData() {
       if (!tripId) return;
@@ -104,7 +101,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         const snap = await getDocs(q);
         setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-        const settingsSnap = await getDoc(doc(db, "trips", tripId, "settings", "categories"));
+        // Fetch universal global categories
+        const settingsSnap = await getDoc(doc(db, "settings", "global_categories"));
         if (settingsSnap.exists() && settingsSnap.data().list) {
           setCategories(settingsSnap.data().list);
         }
@@ -321,20 +319,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         </div>
         <div className="flex items-center gap-3">
           {!isGuest && (
-            <>
-              <button 
-                onClick={() => setIsAddFormOpen(!isAddFormOpen)}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
-              >
-                <span>{isAddFormOpen ? 'Close Add Form' : 'Add Activity'}</span>
-              </button>
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer"
-              >
-                <Settings className="w-4 h-4" /> Manage Types
-              </button>
-            </>
+            <button 
+              onClick={() => setIsAddFormOpen(!isAddFormOpen)}
+              className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+            >
+              <span>{isAddFormOpen ? 'Close Add Form' : 'Add Activity'}</span>
+            </button>
           )}
         </div>
       </div>
@@ -740,15 +730,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           })}
         </div>
       </DragDropContext>
-
-      <CategoryModal 
-        tripId={tripId}
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        categories={categories}
-        setCategories={setCategories}
-        sortedCategories={sortedCategories}
-      />
     </div>
   );
 }
