@@ -14,6 +14,7 @@ export default function ItineraryForm({
   location, setLocation, handleLocationChange,
   showPredictions, predictions, handleSelectPrediction,
   details, setDetails,
+  paidInAdvance, setPaidInAdvance,
   loading, dropdownRef,
   onAddItem
 }) {
@@ -146,6 +147,18 @@ export default function ItineraryForm({
             onChange={(e) => setDetails(e.target.value)} 
             className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
           />
+        </div>
+
+        <div className="md:col-span-3">
+          <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer">
+            <input
+              type="checkbox"
+              checked={paidInAdvance}
+              onChange={(e) => setPaidInAdvance(e.target.checked)}
+              className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+            />
+            Paid in advance
+          </label>
         </div>
       </div>
 

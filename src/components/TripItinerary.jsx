@@ -59,6 +59,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [cost, setCost] = useState('');
+  const [paidInAdvance, setPaidInAdvance] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Collapsed Days & Unscheduled Pool Toggles
@@ -180,6 +181,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         location: location.trim(),
         details: details.trim(),
         cost: cost ? parseFloat(cost) : 0,
+        paidInAdvance: Boolean(paidInAdvance),
         highlighted: false,
         createdAt: new Date()
       };
@@ -189,6 +191,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setLocation('');
       setDetails('');
       setCost('');
+      setPaidInAdvance(false);
       setSelectedDate('');
       setEndDate('');
       setIsFlexibleTime(false);
@@ -242,6 +245,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (isGuest) return;
     if (!editTitle.trim()) return;
 
+    const itemToUpdate = itineraryItems.find(i => i.id === itemId);
     const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
@@ -250,7 +254,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       category: editCategory,
       location: editLocation.trim(),
       details: editDetails.trim(),
-      cost: editCost ? parseFloat(editCost) : 0
+      cost: editCost ? parseFloat(editCost) : 0,
+      paidInAdvance: Boolean(itemToUpdate?.paidInAdvance)
     };
 
     try {
@@ -307,6 +312,19 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 
+  const handleTogglePaidInAdvance = async (itemId, nextValue) => {
+    const itemToUpdate = itineraryItems.find(i => i.id === itemId);
+    if (!itemToUpdate) return;
+
+    try {
+      await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { paidInAdvance: nextValue });
+      setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, paidInAdvance: nextValue } : i));
+    } catch (err) {
+      console.error("Error updating paid-in-advance flag:", err);
+      alert("Failed to update payment status.");
+    }
+  };
+
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
@@ -315,7 +333,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Estimated Total Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
+          <p className="text-xs text-slate-500 mt-0.5">Estimated Trip Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
         </div>
         <div className="flex items-center gap-3">
           {!isGuest && (
@@ -343,6 +361,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
             showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
             details={details} setDetails={setDetails}
+            paidInAdvance={paidInAdvance} setPaidInAdvance={setPaidInAdvance}
             loading={loading} dropdownRef={dropdownRef}
             onAddItem={handleAddItem}
           />
@@ -501,6 +520,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                   setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
                                 } catch (err) { console.error(err); }
                               }}
+                              onTogglePaidInAdvance={handleTogglePaidInAdvance}
                               editTitle={editTitle} setEditTitle={setEditTitle}
                               editDate={editDate} setEditDate={setEditDate} 
                               editEndDate={editEndDate} setEditEndDate={setEditEndDate}
@@ -537,8 +557,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
               (i.endDate >= dateStr || !i.endDate)
             );
 
-            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0) + 
-                             activeAccommodations.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
             const isDayCollapsed = collapsedDays[dateStr];

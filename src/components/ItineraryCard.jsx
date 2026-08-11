@@ -18,7 +18,7 @@ export default function ItineraryCard({
   item, index, currency,
   isExpanded, onToggleExpand,
   isEditing, onStartEdit, onSaveEdit, onCancelEdit, onDelete,
-  onToggleHighlight,
+  onToggleHighlight, onTogglePaidInAdvance,
   editTitle, setEditTitle,
   editDate, setEditDate, effectiveStartDate, effectiveEndDate,
   editHour, setEditHour, editMinute, setEditMinute, hours, minutes,
@@ -66,6 +66,18 @@ export default function ItineraryCard({
                   {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
                   {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                 </div>
+
+                <label className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 mt-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(item.paidInAdvance)}
+                    onChange={(e) => {
+                      if (onTogglePaidInAdvance) onTogglePaidInAdvance(item.id, e.target.checked);
+                    }}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  Paid in advance
+                </label>
 
                 {/* Location */}
                 {item.location && (
