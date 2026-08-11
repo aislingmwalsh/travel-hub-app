@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Inbox } from 'lucide-react';
+import { Calendar, Settings, Inbox, Building2 } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -53,7 +53,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [title, setTitle] = useState('');
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
+  const [isFlexibleTime, setIsFlexibleTime] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
+  const [endDate, setEndDate] = useState(''); // For multi-day accommodations
   const [category, setCategory] = useState('Tour');
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
@@ -68,7 +70,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
   };
 
-  // Safe guest role verification
   const safeRole = typeof userRole === 'object' ? userRole?.role : userRole;
   const isGuest = String(safeRole || '').toLowerCase() === 'guest';
 
@@ -79,8 +80,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [editingCardId, setEditingCardId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
   const [editHour, setEditHour] = useState('09');
   const [editMinute, setEditMinute] = useState('00');
+  const [editIsFlexible, setEditIsFlexible] = useState(false);
   const [editCategory, setEditCategory] = useState('Tour');
   const [editLocation, setEditLocation] = useState('');
   const [editDetails, setEditDetails] = useState('');
@@ -172,8 +175,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     try {
       const newItem = {
         title,
-        time: `${selectedHour}:${selectedMinute}`,
+        time: isFlexibleTime ? 'Flexible' : `${selectedHour}:${selectedMinute}`,
         date: selectedDate ? selectedDate : null,
+        endDate: category === 'Accommodation' && endDate ? endDate : null,
         category,
         location: location.trim(),
         details: details.trim(),
@@ -188,6 +192,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setDetails('');
       setCost('');
       setSelectedDate('');
+      setEndDate('');
+      setIsFlexibleTime(false);
       setSelectedHour('09');
       setSelectedMinute('00');
     } catch (err) {
@@ -216,9 +222,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setExpandedCardId(item.id);
     setEditTitle(item.title);
     setEditDate(item.date || '');
-    const [h, m] = (item.time || '09:00').split(':');
-    setEditHour(h || '09');
-    setEditMinute(m || '00');
+    setEditEndDate(item.endDate || '');
+    if (item.time === 'Flexible') {
+      setEditIsFlexible(true);
+      setEditHour('09');
+      setEditMinute('00');
+    } else {
+      setEditIsFlexible(false);
+      const [h, m] = (item.time || '09:00').split(':');
+      setEditHour(h || '09');
+      setEditMinute(m || '00');
+    }
     setEditCategory(item.category || 'Tour');
     setEditLocation(item.location || '');
     setEditDetails(item.details || '');
@@ -233,7 +247,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
-      time: `${editHour}:${editMinute}`,
+      endDate: editCategory === 'Accommodation' && editEndDate ? editEndDate : null,
+      time: editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`,
       category: editCategory,
       location: editLocation.trim(),
       details: editDetails.trim(),
@@ -275,7 +290,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const unscheduledItems = itineraryItems.filter(i => !i.date || !sortedDates.includes(i.date));
   
   const groupedItems = itineraryItems.reduce((groups, item) => {
-    if (item.date && sortedDates.includes(item.date)) {
+    if (item.date && sortedDates.includes(item.date) && item.category !== 'Accommodation') {
       if (!groups[item.date]) groups[item.date] = [];
       groups[item.date].push(item);
     }
@@ -286,6 +301,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     groupedItems[d].sort((a, b) => {
       if (a.highlighted && !b.highlighted) return -1;
       if (!a.highlighted && b.highlighted) return 1;
+      if (a.time === 'Flexible' && b.time !== 'Flexible') return -1;
+      if (a.time !== 'Flexible' && b.time === 'Flexible') return 1;
       return a.time.localeCompare(b.time);
     });
   });
@@ -323,13 +340,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       </div>
 
       {!isGuest && isAddFormOpen && (
-        <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn">
+        <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn space-y-4">
           <ItineraryForm 
             title={title} setTitle={setTitle}
             selectedDate={selectedDate} setSelectedDate={setSelectedDate}
             effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
             selectedHour={selectedHour} setSelectedHour={setSelectedHour}
             selectedMinute={selectedMinute} setSelectedMinute={setSelectedMinute}
+            isFlexibleTime={isFlexibleTime} setIsFlexibleTime={setIsFlexibleTime}
             category={category} setCategory={setCategory} sortedCategories={sortedCategories}
             cost={cost} setCost={setCost} currency={currency}
             location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
@@ -338,6 +356,18 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             loading={loading} dropdownRef={dropdownRef}
             onAddItem={handleAddItem}
           />
+          {category === 'Accommodation' && (
+            <div className="pt-2 border-t border-slate-200">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Check-out Date (Optional Multi-day stay)</label>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                min={selectedDate || effectiveStartDate} 
+                className="w-full md:w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -398,9 +428,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                             }}
                             editTitle={editTitle} setEditTitle={setEditTitle}
                             editDate={editDate} setEditDate={setEditDate} 
+                            editEndDate={editEndDate} setEditEndDate={setEditEndDate}
                             effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
                             editHour={editHour} setEditHour={setEditHour} 
                             editMinute={editMinute} setEditMinute={setEditMinute} 
+                            editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
                             hours={hours} minutes={minutes}
                             editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
                             editCost={editCost} setEditCost={setEditCost}
@@ -421,7 +453,18 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           {/* 📅 DAILY ITINERARY FEED */}
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
-            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+            
+            // Active Accommodations for this specific date
+            const activeAccommodations = itineraryItems.filter(i => 
+              i.category === 'Accommodation' && 
+              i.date && 
+              i.date <= dateStr && 
+              (i.endDate >= dateStr || !i.endDate)
+            );
+
+            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0) + 
+                             activeAccommodations.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+            
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
             const isDayCollapsed = collapsedDays[dateStr];
 
@@ -437,12 +480,46 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   </div>
                   <div className="flex items-center gap-3">
                     {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                    {items.length === 0 && activeAccommodations.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>
 
                 {!isDayCollapsed && (
                   <div className="p-4 space-y-4">
+                    
+                    {/* 🏨 ACCOMMODATION BANNERS */}
+                    {activeAccommodations.length > 0 && (
+                      <div className="space-y-2">
+                        {activeAccommodations.map(acc => {
+                          const isCheckIn = acc.date === dateStr;
+                          const isCheckOut = acc.endDate === dateStr;
+                          const badgeLabel = isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : 'Accommodation');
+
+                          return (
+                            <div key={acc.id} className="bg-amber-50 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+                                  <Building2 className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">
+                                      {badgeLabel}
+                                    </span>
+                                    <h5 className="font-bold text-amber-950 text-sm">{acc.title}</h5>
+                                  </div>
+                                  {acc.location && <p className="text-xs text-amber-800 mt-0.5">{acc.location}</p>}
+                                </div>
+                              </div>
+                              {acc.cost > 0 && (
+                                <span className="text-xs font-bold text-amber-900">{currency} {Number(acc.cost).toFixed(2)}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
                       {(provided, snapshot) => (
                         <div ref={provided.innerRef} {...provided.droppableProps} className={`space-y-3 min-h-[90px] transition-colors rounded-xl p-1 ${snapshot.isDraggingOver ? 'bg-blue-50/60 ring-2 ring-inset ring-blue-300' : ''}`}>
@@ -474,9 +551,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                 }}
                                 editTitle={editTitle} setEditTitle={setEditTitle}
                                 editDate={editDate} setEditDate={setEditDate} 
+                                editEndDate={editEndDate} setEditEndDate={setEditEndDate}
                                 effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
                                 editHour={editHour} setEditHour={setEditHour} 
                                 editMinute={editMinute} setEditMinute={setEditMinute} 
+                                editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
                                 hours={hours} minutes={minutes}
                                 editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
                                 editCost={editCost} setEditCost={setEditCost}
@@ -491,13 +570,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       )}
                     </Droppable>
 
-                    {items.filter(a => a.location).length > 0 && (
-                      <DailyMapView 
-                        activities={items} 
-                        currency={currency} 
-                        destination={tripDestination} 
-                      />
-                    )}
+                    {/* Inject daily activities AND active accommodations into DailyMapView */}
+                    {(() => {
+                      const mapActivities = [...activeAccommodations, ...items].filter(a => a.location);
+                      return mapActivities.length > 0 ? (
+                        <DailyMapView 
+                          activities={mapActivities} 
+                          currency={currency} 
+                          destination={tripDestination} 
+                        />
+                      ) : null;
+                    })()}
                   </div>
                 )}
               </div>
