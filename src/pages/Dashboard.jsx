@@ -59,21 +59,20 @@ export default function Dashboard({ user, onSelectTrip }) {
         const snap = await getDocs(q);
         
         const authorizedTrips = [];
-        const userEmail = user.email?.toLowerCase();
 
         for (const docSnap of snap.docs) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
-          const isOwner = tripData.createdBy === user.uid || tripData.ownerId === user.uid;
-          const isMember = tripData.membersList && Array.isArray(tripData.membersList) && 
-                           tripData.membersList.map(e => e.toLowerCase()).includes(userEmail);
+          // Check if current user exists in the members map with an owner or collaborator/guest role
+          const memberRole = tripData.members && tripData.members[user.uid];
 
-          if (isOwner || isMember) {
+          // If the user is in the members map OR if they created it (fallback), show the trip
+          if (memberRole || tripData.createdBy === user.uid) {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              userRole: isOwner ? 'Owner' : 'Collaborator'
+              userRole: memberRole ? memberRole.toUpperCase() : 'OWNER'
             });
           }
         }
@@ -94,7 +93,7 @@ export default function Dashboard({ user, onSelectTrip }) {
 
     setSubmitting(true);
     try {
-      // 1. Create main trip document with strict security fields & membersList array
+      // Create trip document with the exact 'members' map expected by your database rules
       const newTripRef = await addDoc(collection(db, "trips"), {
         title: title.trim(),
         destination: destination.trim(),
@@ -102,16 +101,10 @@ export default function Dashboard({ user, onSelectTrip }) {
         endDate: endDate || startDate,
         currency: currency,
         createdBy: user.uid,
-        ownerId: user.uid,
-        membersList: [user.email.toLowerCase()],
+        members: {
+          [user.uid]: 'owner' // Matches your rule: resource.data.members[request.auth.uid] == 'owner'
+        },
         createdAt: new Date()
-      });
-
-      // 2. Automatically register creator as Owner in members subcollection
-      await setDoc(doc(db, "trips", newTripRef.id, "members", user.uid), {
-        email: user.email.toLowerCase(),
-        role: 'Owner',
-        joinedAt: new Date()
       });
 
       // Reset form & close modal
@@ -122,7 +115,7 @@ export default function Dashboard({ user, onSelectTrip }) {
       setCurrency('EUR');
       setIsCreateModalOpen(false);
 
-      // Refresh trip list
+      // Open new trip itinerary
       onSelectTrip(newTripRef.id);
     } catch (err) {
       console.error("Error creating trip:", err);
