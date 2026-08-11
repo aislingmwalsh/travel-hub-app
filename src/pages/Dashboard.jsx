@@ -4,6 +4,15 @@ import { db } from '../firebase';
 import { collection, getDocs, query, orderBy, addDoc, doc, setDoc } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 
+function getNextDay(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getSeasonalTheme(startDateStr) {
   if (!startDateStr) return { bg: 'bg-white', border: 'border-slate-200', badge: 'bg-blue-50 text-blue-600 border-blue-100' };
   
@@ -97,9 +106,29 @@ useEffect(() => {
     fetchUserTrips();
   }, [user]);
 
+  const handleStartDateChange = (newStartDate) => {
+    setStartDate(newStartDate);
+
+    if (!newStartDate) {
+      setEndDate('');
+      return;
+    }
+
+    setEndDate((currentEndDate) => {
+      if (!currentEndDate || currentEndDate < newStartDate) {
+        return getNextDay(newStartDate);
+      }
+      return currentEndDate;
+    });
+  };
+
   const handleCreateTrip = async (e) => {
     e.preventDefault();
     if (!title.trim() || !startDate || !user) return;
+    if (endDate && endDate < startDate) {
+      alert('The End Date cannot be earlier than the Start Date.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -289,7 +318,7 @@ useEffect(() => {
                   <input 
                     type="date" 
                     value={startDate} 
-                    onChange={(e) => setStartDate(e.target.value)} 
+                    onChange={(e) => handleStartDateChange(e.target.value)} 
                     required 
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   />
@@ -299,6 +328,7 @@ useEffect(() => {
                   <input 
                     type="date" 
                     value={endDate} 
+                    min={startDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   />
