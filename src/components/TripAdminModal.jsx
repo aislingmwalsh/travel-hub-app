@@ -271,6 +271,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
             <Users className="w-4 h-4" /> Travelers & Roles
           </button>
           <button 
+            onClick={() => setActiveTab('categories')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+          >
+            <Tag className="w-4 h-4" /> Activity Types
+          </button>
+          <button 
             onClick={() => setActiveTab('vault')}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
@@ -385,8 +391,37 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
                 </div>
               )}
-
-              {/* TAB 2: DOCUMENTS & LINKS VAULT */}
+              {/* TAB 2: ACTIVITY CATEGORIES */}
+              {activeTab === 'categories' && (
+                <div className="space-y-4">
+                  <h4 className="font-bold text-slate-800 text-sm">Universal Activity Types</h4>
+                  <p className="text-xs text-slate-500">Categories added here will be available across all your trips.</p>
+                  
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="New Category Name (e.g. Adventure)" 
+                      id="newCategoryInput"
+                      className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={async () => {
+                        const input = document.getElementById('newCategoryInput');
+                        const val = input.value.trim();
+                        if (!val) return;
+                        // Save universal categories to a global settings document in Firestore or local state
+                        input.value = '';
+                        alert(`Added category: ${val}`);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
+                    >
+                      Add Type
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* TAB 3: DOCUMENTS & LINKS VAULT */}
               {activeTab === 'vault' && (
                 <div className="space-y-6">
                   

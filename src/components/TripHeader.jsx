@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { Calendar, MapPin, Edit3, Save, X, Tag, Users } from 'lucide-react';
+import { Calendar, MapPin, Edit3, Save, X, Tag } from 'lucide-react';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
-export default function TripHeader({ tripId, tripData, userRole, onOpenMembersModal, onTripUpdate }) {
+export default function TripHeader({ tripId, tripData, userRole, onTripUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(tripData.title || '');
   const [destination, setDestination] = useState(tripData.destination || '');
@@ -28,7 +28,6 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
     }
   };
 
-  // Safely extract role whether it's a string or an object wrapper
   const unwrappedRole = typeof userRole === 'object' && userRole !== null ? userRole.role : userRole;
   const isOwner = String(unwrappedRole || '').trim().toLowerCase() === 'owner';
 
@@ -56,22 +55,13 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Only Owners can see management buttons */}
             {isOwner && (
-              <>
-                <button 
-                  onClick={onOpenMembersModal}
-                  className="flex items-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition cursor-pointer"
-                >
-                  <Users className="w-4 h-4" /> Manage Travelers
-                </button>
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition cursor-pointer"
-                >
-                  <Edit3 className="w-4 h-4" /> Edit Trip Details
-                </button>
-              </>
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4" /> Edit Trip Details
+              </button>
             )}
           </div>
         </div>
