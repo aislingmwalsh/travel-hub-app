@@ -139,11 +139,12 @@ export default function ItineraryCard({
                     <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
                     <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label><input type="number" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                     <div className="md:col-span-3 flex items-center gap-3">
-                      <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer">
+                      <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={editPaidInAdvance}
                           onChange={(e) => setEditPaidInAdvance(e.target.checked)}
+                          onClick={(e) => e.stopPropagation()}
                           className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
                         />
                         Paid in advance
@@ -152,7 +153,7 @@ export default function ItineraryCard({
                     <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label><input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                     <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label><textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none" /></div>
                   </div>
-                  <div className="flex justify-end pt-2"><button onClick={onSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
+                  <div className="flex justify-end pt-2"><button type="button" onClick={onSaveEdit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
