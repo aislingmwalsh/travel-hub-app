@@ -2,26 +2,62 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
 
-export default function Dashboard({ onSelectTrip }) {
+export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'past'
 
   useEffect(() => {
-    async function fetchTrips() {
+    async function fetchUserTrips() {
+      if (!user) return;
       try {
         const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
         const snap = await getDocs(q);
-        setTrips(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        
+        const authorizedTrips = [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // Check membership for each trip
+        for (const tripDoc of snap.docs) {
+          const tripId = tripDoc.id;
+          const tripData = tripDoc.data();
+
+          const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
+          const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          // Check if current user is part of this trip (by email or uid)
+          const isMember = membersList.some(m => 
+            (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
+            m.id === user.uid
+          );
+
+          if (isMember) {
+            authorizedTrips.push({
+              id: tripId,
+              ...tripData,
+              userRole: membersList.find(m => m.email?.toLowerCase() === user.email?.toLowerCase() || m.id === user.uid)?.role || 'Guest'
+            });
+          }
+        }
+
+        setTrips(authorizedTrips);
       } catch (err) {
-        console.error("Error fetching trips:", err);
+        console.error("Error fetching user trips:", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchTrips();
-  }, []);
+    fetchUserTrips();
+  }, [user]);
+
+  const filteredTrips = trips.filter(trip => {
+    const today = new Date().toISOString().split('T')[0];
+    if (statusFilter === 'upcoming') return trip.startDate >= today;
+    if (statusFilter === 'past') return trip.startDate < today;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -33,21 +69,44 @@ export default function Dashboard({ onSelectTrip }) {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Your Trips Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Select a trip to view and manage its itinerary.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Manage your active itineraries, bookings, and invitations.</p>
+        </div>
+
+        {/* Status Filter Bar */}
+        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+          <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
+          <button 
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            All ({trips.length})
+          </button>
+          <button 
+            onClick={() => setStatusFilter('upcoming')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            Upcoming
+          </button>
+          <button 
+            onClick={() => setStatusFilter('past')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'past' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            Past
+          </button>
         </div>
       </div>
 
-      {trips.length === 0 ? (
+      {filteredTrips.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700">No trips found</p>
-          <p className="text-xs text-slate-400">Create your first trip to start planning.</p>
+          <p className="text-sm font-semibold text-slate-700">No trips found matching this filter</p>
+          <p className="text-xs text-slate-400">You have not been invited to or created any trips in this category.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {trips.map(trip => (
+          {filteredTrips.map(trip => (
             <div 
               key={trip.id} 
               onClick={() => onSelectTrip && onSelectTrip(trip.id)}
@@ -57,6 +116,9 @@ export default function Dashboard({ onSelectTrip }) {
                 <div className="flex justify-between items-start">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
                     {trip.currency || 'EUR'}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                    {trip.userRole}
                   </span>
                 </div>
 

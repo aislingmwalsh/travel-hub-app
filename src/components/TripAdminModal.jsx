@@ -1,10 +1,10 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe } from 'lucide-react';
 
-export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
+export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState('');
   const [activeTab, setActiveTab] = useState('members');
@@ -20,11 +20,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
 
   // Fetch all trips where user is Owner or Collaborator
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !currentUser) return;
 
     async function fetchAuthorizedTrips() {
       try {
-        // Query trips collection
         const tripsSnap = await getDocs(collection(db, "trips"));
         const tripsList = [];
 
@@ -32,13 +31,14 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
           const tripId = tripDoc.id;
           const tripData = tripDoc.data();
 
-          // Check members subcollection for this user and role
           const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
           const memberDocs = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           
-          // Find if current user is owner or collaborator
-          // (Assuming member record matches user email or ID, or fallback to general trip ownership)
-          const userMemberRecord = memberDocs.find(m => m.role === 'Owner' || m.role === 'Collaborator');
+          // Match current user against members by email or UID
+          const userMemberRecord = memberDocs.find(m => 
+            ((m.email && m.email.toLowerCase() === currentUser.email?.toLowerCase()) || m.id === currentUser.uid) &&
+            (m.role === 'Owner' || m.role === 'Collaborator')
+          );
 
           if (userMemberRecord) {
             tripsList.push({
@@ -56,11 +56,11 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
           setSelectedTripRole(tripsList[0].userRole);
         }
       } catch (err) {
-        console.error("Error fetching authorized trips:", err);
+        console.error("Error fetching authorized trips for admin modal:", err);
       }
     }
     fetchAuthorizedTrips();
-  }, [isOpen]);
+  }, [isOpen, currentUser]);
 
   // Fetch subcollections when selectedTripId changes
   useEffect(() => {
@@ -69,8 +69,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
     async function fetchTripDetails() {
       try {
         const membersSnap = await getDocs(collection(db, "trips", selectedTripId, "members"));
-        const memberList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setMembers(memberList);
+        setMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         const vaultSnap = await getDocs(collection(db, "trips", selectedTripId, "vault"));
         setVaultLinks(vaultSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -78,7 +77,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
         const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
         if (currentTrip) setSelectedTripRole(currentTrip.userRole);
       } catch (err) {
-        console.error("Error fetching trip subcollections:", err);
+        console.error("Error fetching trip details:", err);
       }
     }
     fetchTripDetails();
@@ -157,11 +156,15 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
             onChange={handleTripSelect}
             className="w-full bg-white border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 cursor-pointer shadow-sm"
           >
-            {authorizedTrips.map(trip => (
-              <option key={trip.id} value={trip.id}>
-                {trip.title} ({trip.destination || 'No Destination'}) — Role: {trip.userRole}
-              </option>
-            ))}
+            {authorizedTrips.length === 0 ? (
+              <option value="">No managed trips available</option>
+            ) : (
+              authorizedTrips.map(trip => (
+                <option key={trip.id} value={trip.id}>
+                  {trip.title} ({trip.destination || 'No Destination'}) — Role: {trip.userRole}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -186,7 +189,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUserId }) {
           
           {authorizedTrips.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs">
-              No trips found where you are an Owner or Collaborator.
+              You do not have Owner or Collaborator permissions on any trips.
             </div>
           ) : (
             <>

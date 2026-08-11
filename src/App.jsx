@@ -5,25 +5,22 @@ import { onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink } from '
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TripDetails from './components/TripDetails'; 
-import TripAdminModal from './components/TripAdminModal'; // 👈 1. Import your administration modal
-import { Settings } from 'lucide-react'; // 👈 2. Import icon for the settings button
+import TripAdminModal from './components/TripAdminModal';
+import { Settings } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState(null);
-  const [isGlobalAdminOpen, setIsGlobalAdminOpen] = useState(false); // 👈 3. Track modal state
+  const [isGlobalAdminOpen, setIsGlobalAdminOpen] = useState(false);
 
   useEffect(() => {
-    // 1. The "Link Catcher"
     const checkEmailLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
         let email = window.localStorage.getItem('emailForSignIn');
-        
         if (!email) {
           email = window.prompt('Please provide your email for confirmation');
         }
-        
         try {
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
@@ -36,7 +33,6 @@ export default function App() {
 
     checkEmailLink();
 
-    // 2. The "Bouncer"
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -53,14 +49,12 @@ export default function App() {
     );
   }
 
-  // If not logged in, show Login (no header or settings needed here)
   if (!user) {
     return <Login />;
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* 👈 4. Persistent Global Header with Settings & Vault Button */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
         <h1 
           onClick={() => setSelectedTripId(null)} 
@@ -77,7 +71,6 @@ export default function App() {
         </button>
       </header>
 
-      {/* Main App Workspace */}
       <main className="flex-grow">
         {selectedTripId ? (
           <TripDetails 
@@ -92,11 +85,10 @@ export default function App() {
         )}
       </main>
 
-      {/* 👈 5. Global Admin Modal rendered on top of everything */}
       <TripAdminModal 
         isOpen={isGlobalAdminOpen}
         onClose={() => setIsGlobalAdminOpen(false)}
-        currentUserId={user?.uid}
+        currentUser={user}
       />
     </div>
   );
