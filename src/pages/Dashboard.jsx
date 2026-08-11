@@ -7,52 +7,22 @@ import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
 export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'past'
 
   useEffect(() => {
-    async function fetchUserTrips() {
-      if (!user) return;
+    async function fetchTrips() {
       try {
         const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
         const snap = await getDocs(q);
-        
-        const authorizedTrips = [];
-
-        for (const tripDoc of snap.docs) {
-          const tripId = tripDoc.id;
-          const tripData = tripDoc.data();
-
-          const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
-          const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-          // Check membership by email, UID, or if user is listed as creator/owner
-          const userMemberRecord = membersList.find(m => 
-            (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
-            m.id === user.uid ||
-            m.uid === user.uid
-          );
-
-          // Fallback: If no members records match but user created it or trip has no members yet, allow viewing
-          const isCreator = tripData.createdBy === user.uid || tripData.ownerId === user.uid;
-          
-          if (userMemberRecord || isCreator || membersList.length === 0) {
-            authorizedTrips.push({
-              id: tripId,
-              ...tripData,
-              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
-            });
-          }
-        }
-
-        setTrips(authorizedTrips);
+        setTrips(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {
-        console.error("Error fetching user trips:", err);
+        console.error("Error fetching trips:", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchUserTrips();
-  }, [user]);
+    fetchTrips();
+  }, []);
 
   const filteredTrips = trips.filter(trip => {
     const today = new Date().toISOString().split('T')[0];
@@ -74,7 +44,7 @@ export default function Dashboard({ user, onSelectTrip }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Your Trips Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Manage your active itineraries, bookings, and invitations.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Select a trip to view and manage its itinerary.</p>
         </div>
 
         {/* Status Filter Bar */}
@@ -104,7 +74,7 @@ export default function Dashboard({ user, onSelectTrip }) {
       {filteredTrips.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
           <p className="text-sm font-semibold text-slate-700">No trips found matching this filter</p>
-          <p className="text-xs text-slate-400">You have not been invited to or created any trips in this category.</p>
+          <p className="text-xs text-slate-400">Create your first trip to start planning.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -118,9 +88,6 @@ export default function Dashboard({ user, onSelectTrip }) {
                 <div className="flex justify-between items-start">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
                     {trip.currency || 'EUR'}
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                    {trip.userRole}
                   </span>
                 </div>
 

@@ -4,14 +4,13 @@ import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe } from 'lucide-react';
 
-export default function TripAdminModal({ isOpen, onClose, currentUser }) {
-  const [authorizedTrips, setAuthorizedTrips] = useState([]);
+export default function TripAdminModal({ isOpen, onClose }) {
+  const [trips, setTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState('');
   const [activeTab, setActiveTab] = useState('members');
   
   const [members, setMembers] = useState([]);
   const [vaultLinks, setVaultLinks] = useState([]);
-  const [selectedTripRole, setSelectedTripRole] = useState('Guest');
   
   // Vault Form States
   const [linkTitle, setLinkTitle] = useState('');
@@ -19,48 +18,22 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   const [linkCategory, setLinkCategory] = useState('Booking');
 
   useEffect(() => {
-    if (!isOpen || !currentUser) return;
+    if (!isOpen) return;
 
-    async function fetchAuthorizedTrips() {
+    async function fetchTrips() {
       try {
-        const tripsSnap = await getDocs(collection(db, "trips"));
-        const tripsList = [];
-
-        for (const tripDoc of tripsSnap.docs) {
-          const tripId = tripDoc.id;
-          const tripData = tripDoc.data();
-
-          const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
-          const memberDocs = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          
-          const userMemberRecord = memberDocs.find(m => 
-            ((m.email && m.email.toLowerCase() === currentUser.email?.toLowerCase()) || m.id === currentUser.uid || m.uid === currentUser.uid) &&
-            (m.role === 'Owner' || m.role === 'Collaborator' || !m.role)
-          );
-
-          const isCreator = tripData.createdBy === currentUser.uid || tripData.ownerId === currentUser.uid;
-
-          if (userMemberRecord || isCreator || memberDocs.length === 0) {
-            tripsList.push({
-              id: tripId,
-              title: tripData.title || 'Untitled Trip',
-              destination: tripData.destination || '',
-              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
-            });
-          }
-        }
-
-        setAuthorizedTrips(tripsList);
-        if (tripsList.length > 0) {
-          setSelectedTripId(tripsList[0].id);
-          setSelectedTripRole(tripsList[0].userRole);
+        const snap = await getDocs(collection(db, "trips"));
+        const tripList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setTrips(tripList);
+        if (tripList.length > 0) {
+          setSelectedTripId(tripList[0].id);
         }
       } catch (err) {
-        console.error("Error fetching authorized trips for admin modal:", err);
+        console.error("Error fetching trips for admin modal:", err);
       }
     }
-    fetchAuthorizedTrips();
-  }, [isOpen, currentUser]);
+    fetchTrips();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!selectedTripId) return;
@@ -72,34 +45,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
 
         const vaultSnap = await getDocs(collection(db, "trips", selectedTripId, "vault"));
         setVaultLinks(vaultSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-        const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
-        if (currentTrip) setSelectedTripRole(currentTrip.userRole);
       } catch (err) {
         console.error("Error fetching trip details:", err);
       }
     }
     fetchTripDetails();
-  }, [selectedTripId, authorizedTrips]);
-
-  const handleTripSelect = (e) => {
-    const tripId = e.target.value;
-    setSelectedTripId(tripId);
-    const trip = authorizedTrips.find(t => t.id === tripId);
-    if (trip) setSelectedTripRole(trip.userRole);
-  };
-
-  const isOwner = selectedTripRole?.toLowerCase() === 'owner';
-
-  const handleRoleChange = async (memberId, newRole) => {
-    if (!isOwner) return;
-    try {
-      await updateDoc(doc(db, "trips", selectedTripId, "members", memberId), { role: newRole });
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
-    } catch (err) {
-      console.error("Error updating role:", err);
-    }
-  };
+  }, [selectedTripId]);
 
   const handleAddLink = async (e) => {
     e.preventDefault();
@@ -140,7 +91,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-900 text-lg">Settings & Vault</h3>
-            <p className="text-xs text-slate-500">Manage members and reference documents across your managed trips</p>
+            <p className="text-xs text-slate-500">Manage members and reference documents for your trips</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
             <X className="w-5 h-5 text-slate-500" />
@@ -152,15 +103,15 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
           <label className="text-xs font-bold text-blue-900 uppercase tracking-wider shrink-0">Select Trip:</label>
           <select 
             value={selectedTripId} 
-            onChange={handleTripSelect}
+            onChange={(e) => setSelectedTripId(e.target.value)}
             className="w-full bg-white border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 cursor-pointer shadow-sm"
           >
-            {authorizedTrips.length === 0 ? (
-              <option value="">No managed trips available</option>
+            {trips.length === 0 ? (
+              <option value="">No trips available</option>
             ) : (
-              authorizedTrips.map(trip => (
+              trips.map(trip => (
                 <option key={trip.id} value={trip.id}>
-                  {trip.title} ({trip.destination || 'No Destination'}) — Role: {trip.userRole}
+                  {trip.title} ({trip.destination || 'No Destination'})
                 </option>
               ))
             )}
@@ -186,9 +137,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
         {/* Tab Content Area */}
         <div className="p-6 overflow-y-auto flex-grow space-y-6">
           
-          {authorizedTrips.length === 0 ? (
+          {trips.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs">
-              You do not have Owner or Collaborator permissions on any trips.
+              No trips found in database.
             </div>
           ) : (
             <>
@@ -200,30 +151,28 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
                     <span className="text-xs text-slate-500">{members.length} Total</span>
                   </div>
 
-                  <div className="space-y-2">
-                    {members.map(member => (
-                      <div key={member.id} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm">{member.name || member.email}</p>
-                          <p className="text-[11px] text-slate-500">{member.email}</p>
+                  {members.length === 0 ? (
+                    <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
+                      No explicit member records found for this trip.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {members.map(member => (
+                        <div key={member.id} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <div>
+                            <p className="font-bold text-slate-900 text-sm">{member.name || member.email}</p>
+                            <p className="text-[11px] text-slate-500">{member.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-semibold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                              {member.role || 'Guest'}
+                            </span>
+                          </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-3.5 h-3.5 text-slate-400" />
-                          <select 
-                            value={member.role || 'Guest'} 
-                            disabled={!isOwner}
-                            onChange={(e) => handleRoleChange(member.id, e.target.value)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
-                          >
-                            <option value="Owner">Owner</option>
-                            <option value="Collaborator">Collaborator</option>
-                            <option value="Guest">Guest</option>
-                          </select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
