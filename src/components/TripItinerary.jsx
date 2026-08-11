@@ -68,7 +68,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
   };
 
-  const role = String(member.role || '').toLowerCase() === 'guest';
+  // Safe guest role verification
+  const safeRole = typeof userRole === 'object' ? userRole?.role : userRole;
+  const isGuest = String(safeRole || '').toLowerCase() === 'guest';
 
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
   const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
@@ -171,7 +173,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       const newItem = {
         title,
         time: `${selectedHour}:${selectedMinute}`,
-        date: selectedDate ? selectedDate : null, // Allow null for unscheduled
+        date: selectedDate ? selectedDate : null,
         category,
         location: location.trim(),
         details: details.trim(),
@@ -252,7 +254,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     const { destination, source, draggableId } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
-    // destination.droppableId can be a date string OR 'unscheduled'
     const newDate = destination.droppableId === 'unscheduled' ? null : destination.droppableId;
     
     setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
@@ -271,7 +272,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
   const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
   
-  // Separate Unscheduled Items vs Daily Grouped Items
   const unscheduledItems = itineraryItems.filter(i => !i.date || !sortedDates.includes(i.date));
   
   const groupedItems = itineraryItems.reduce((groups, item) => {
