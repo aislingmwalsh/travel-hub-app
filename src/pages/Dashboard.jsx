@@ -4,13 +4,11 @@ import { db } from '../firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
 
-// Helper function to assign seasonal themes based on month or destination
 function getSeasonalTheme(startDateStr) {
   if (!startDateStr) return { bg: 'bg-white', border: 'border-slate-200', badge: 'bg-blue-50 text-blue-600 border-blue-100' };
   
-  const month = new Date(startDateStr).getMonth(); // 0 = Jan, 11 = Dec
+  const month = new Date(startDateStr).getMonth();
   
-  // Spring (Mar - May): Fresh Greens/Teals
   if (month >= 2 && month <= 4) {
     return {
       bg: 'bg-gradient-to-br from-emerald-50/40 via-white to-white',
@@ -18,7 +16,6 @@ function getSeasonalTheme(startDateStr) {
       badge: 'bg-emerald-50 text-emerald-700 border-emerald-200'
     };
   }
-  // Summer (Jun - Aug): Warm Ambers/Yellows
   if (month >= 5 && month <= 7) {
     return {
       bg: 'bg-gradient-to-br from-amber-50/40 via-white to-white',
@@ -26,7 +23,6 @@ function getSeasonalTheme(startDateStr) {
       badge: 'bg-amber-50 text-amber-700 border-amber-200'
     };
   }
-  // Autumn (Sep - Nov): Rich Oranges/Bronzes
   if (month >= 8 && month <= 10) {
     return {
       bg: 'bg-gradient-to-br from-orange-50/40 via-white to-white',
@@ -34,7 +30,6 @@ function getSeasonalTheme(startDateStr) {
       badge: 'bg-orange-50 text-orange-700 border-orange-200'
     };
   }
-  // Winter (Dec - Feb): Crisp Blues/Indigos
   return {
     bg: 'bg-gradient-to-br from-blue-50/40 via-white to-white',
     border: 'border-blue-200/60',
@@ -45,7 +40,7 @@ function getSeasonalTheme(startDateStr) {
 export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'past'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     async function fetchUserTrips() {
@@ -60,22 +55,26 @@ export default function Dashboard({ user, onSelectTrip }) {
           const tripId = tripDoc.id;
           const tripData = tripDoc.data();
 
-          // Fetch the members subcollection for this specific trip
+          // Fetch members subcollection
           const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
           const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-          // STRICT CHECK: User must be explicitly listed in the members subcollection by email or UID
+          // Check if user is in members list
           const userMemberRecord = membersList.find(m => 
             (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
             m.id === user.uid ||
             m.uid === user.uid
           );
 
-          if (userMemberRecord) {
+          // Check if user is the direct creator / owner on the main trip document
+          const isCreator = tripData.createdBy === user.uid || tripData.ownerId === user.uid || tripData.userId === user.uid;
+
+          // Include trip if user has a member record OR is the creator OR if the trip has no members subcollection yet (legacy trips)
+          if (userMemberRecord || isCreator || membersList.length === 0) {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              userRole: userMemberRecord.role || 'Guest'
+              userRole: userMemberRecord?.role || (isCreator ? 'Owner' : 'Collaborator')
             });
           }
         }
