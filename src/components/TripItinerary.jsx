@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Inbox, Building2 } from 'lucide-react';
+import { Calendar, Settings, Inbox, Building2, Trash2, Edit2 } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -55,7 +55,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [isFlexibleTime, setIsFlexibleTime] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
-  const [endDate, setEndDate] = useState(''); // For multi-day accommodations
+  const [endDate, setEndDate] = useState(''); 
   const [category, setCategory] = useState('Tour');
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
@@ -177,7 +177,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         title,
         time: isFlexibleTime ? 'Flexible' : `${selectedHour}:${selectedMinute}`,
         date: selectedDate ? selectedDate : null,
-        endDate: category === 'Accommodation' && endDate ? endDate : null,
+        endDate: category === 'Accommodation' && endDate ? endDate : (category === 'Accommodation' ? selectedDate : null),
         category,
         location: location.trim(),
         details: details.trim(),
@@ -205,7 +205,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   };
 
   const handleDeleteItem = async (itemId, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (isGuest) return;
     try {
       await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
@@ -216,13 +216,13 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   };
 
   const handleStartEdit = (item, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (isGuest) return;
     setEditingCardId(item.id);
     setExpandedCardId(item.id);
     setEditTitle(item.title);
     setEditDate(item.date || '');
-    setEditEndDate(item.endDate || '');
+    setEditEndDate(item.endDate || item.date || '');
     if (item.time === 'Flexible') {
       setEditIsFlexible(true);
       setEditHour('09');
@@ -240,14 +240,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   };
 
   const handleSaveEdit = async (itemId, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (isGuest) return;
     if (!editTitle.trim()) return;
 
     const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
-      endDate: editCategory === 'Accommodation' && editEndDate ? editEndDate : null,
+      endDate: editCategory === 'Accommodation' && editEndDate ? editEndDate : (editCategory === 'Accommodation' ? editDate : null),
       time: editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`,
       category: editCategory,
       location: editLocation.trim(),
@@ -364,6 +364,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                 value={endDate} 
                 onChange={(e) => setEndDate(e.target.value)} 
                 min={selectedDate || effectiveStartDate} 
+                max={effectiveEndDate}
                 className="w-full md:w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
               />
             </div>
@@ -374,7 +375,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           
-          {/* 📦 UNSCHEDULED ACTIVITIES POOL STAGING AREA */}
+          {/* 📦 UNSCHEDULED ACTIVITIES POOL */}
           <div className="border border-indigo-200 rounded-2xl overflow-hidden bg-indigo-50/20">
             <div 
               onClick={() => setIsUnscheduledOpen(!isUnscheduledOpen)}
@@ -405,42 +406,65 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           Drop activities here to keep them unscheduled, or select no date when adding.
                         </div>
                       ) : (
-                        unscheduledItems.map((item, index) => (
-                          <ItineraryCard 
-                            key={item.id}
-                            item={item} 
-                            index={index} 
-                            currency={currency}
-                            isExpanded={expandedCardId === item.id}
-                            onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                            isEditing={editingCardId === item.id}
-                            onStartEdit={(e) => handleStartEdit(item, e)}
-                            onSaveEdit={(e) => handleSaveEdit(item.id, e)}
-                            onCancelEdit={() => setEditingCardId(null)}
-                            onDelete={(e) => handleDeleteItem(item.id, e)}
-                            onToggleHighlight={async (itemId, newHighlightState) => {
-                              try {
-                                await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                                setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                              } catch (err) {
-                                console.error("Error updating highlight status:", err);
-                              }
-                            }}
-                            editTitle={editTitle} setEditTitle={setEditTitle}
-                            editDate={editDate} setEditDate={setEditDate} 
-                            editEndDate={editEndDate} setEditEndDate={setEditEndDate}
-                            effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                            editHour={editHour} setEditHour={setEditHour} 
-                            editMinute={editMinute} setEditMinute={setEditMinute} 
-                            editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
-                            hours={hours} minutes={minutes}
-                            editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                            editCost={editCost} setEditCost={setEditCost}
-                            editLocation={editLocation} setEditLocation={setEditLocation}
-                            editDetails={editDetails} setEditDetails={setEditDetails}
-                            isGuest={isGuest}
-                          />
-                        ))
+                        unscheduledItems.map((item, index) => {
+                          if (item.category === 'Accommodation') {
+                            return (
+                              <div key={item.id} className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0"><Building2 className="w-4 h-4" /></div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">Accommodation</span>
+                                      <h5 className="font-bold text-amber-950 text-sm">{item.title}</h5>
+                                    </div>
+                                    {item.location && <p className="text-xs text-amber-800 mt-0.5">{item.location}</p>}
+                                  </div>
+                                </div>
+                                {!isGuest && (
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={(e) => handleStartEdit(item, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition"><Edit2 className="w-4 h-4" /></button>
+                                    <button onClick={(e) => handleDeleteItem(item.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition"><Trash2 className="w-4 h-4" /></button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <ItineraryCard 
+                              key={item.id}
+                              item={item} 
+                              index={index} 
+                              currency={currency}
+                              isExpanded={expandedCardId === item.id}
+                              onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                              isEditing={editingCardId === item.id}
+                              onStartEdit={(e) => handleStartEdit(item, e)}
+                              onSaveEdit={(e) => handleSaveEdit(item.id, e)}
+                              onCancelEdit={() => setEditingCardId(null)}
+                              onDelete={(e) => handleDeleteItem(item.id, e)}
+                              onToggleHighlight={async (itemId, newHighlightState) => {
+                                try {
+                                  await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                  setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                                } catch (err) { console.error(err); }
+                              }}
+                              editTitle={editTitle} setEditTitle={setEditTitle}
+                              editDate={editDate} setEditDate={setEditDate} 
+                              editEndDate={editEndDate} setEditEndDate={setEditEndDate}
+                              effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                              editHour={editHour} setEditHour={setEditHour} 
+                              editMinute={editMinute} setEditMinute={setEditMinute} 
+                              editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
+                              hours={hours} minutes={minutes}
+                              editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                              editCost={editCost} setEditCost={setEditCost}
+                              editLocation={editLocation} setEditLocation={setEditLocation}
+                              editDetails={editDetails} setEditDetails={setEditDetails}
+                              isGuest={isGuest}
+                            />
+                          );
+                        })
                       )}
                       {provided.placeholder}
                     </div>
@@ -454,7 +478,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
             
-            // Active Accommodations for this specific date
             const activeAccommodations = itineraryItems.filter(i => 
               i.category === 'Accommodation' && 
               i.date && 
@@ -487,7 +510,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                 {!isDayCollapsed && (
                   <div className="p-4 space-y-4">
                     
-                    {/* 🏨 ACCOMMODATION BANNERS */}
+                    {/* 🏨 ACCOMMODATION BANNERS WITH EDIT/DELETE */}
                     {activeAccommodations.length > 0 && (
                       <div className="space-y-2">
                         {activeAccommodations.map(acc => {
@@ -511,9 +534,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                   {acc.location && <p className="text-xs text-amber-800 mt-0.5">{acc.location}</p>}
                                 </div>
                               </div>
-                              {acc.cost > 0 && (
-                                <span className="text-xs font-bold text-amber-900">{currency} {Number(acc.cost).toFixed(2)}</span>
-                              )}
+                              <div className="flex items-center gap-3">
+                                {acc.cost > 0 && (
+                                  <span className="text-xs font-bold text-amber-900">{currency} {Number(acc.cost).toFixed(2)}</span>
+                                )}
+                                {!isGuest && (
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={(e) => handleStartEdit(acc, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
+                                    <button onClick={(e) => handleDeleteItem(acc.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -545,9 +576,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                   try {
                                     await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
                                     setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                                  } catch (err) {
-                                    console.error("Error updating highlight status:", err);
-                                  }
+                                  } catch (err) { console.error(err); }
                                 }}
                                 editTitle={editTitle} setEditTitle={setEditTitle}
                                 editDate={editDate} setEditDate={setEditDate} 
@@ -570,7 +599,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       )}
                     </Droppable>
 
-                    {/* Inject daily activities AND active accommodations into DailyMapView */}
                     {(() => {
                       const mapActivities = [...activeAccommodations, ...items].filter(a => a.location);
                       return mapActivities.length > 0 ? (
