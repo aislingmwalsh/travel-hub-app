@@ -86,11 +86,9 @@ export default function DailyMapView({ activities, currency, destination }) {
     const geocoder = new window.google.maps.Geocoder();
 
     const geocodeLocation = (location) => {
-      const rawLocation = location;
       const normalizedLocation = typeof location === 'string' ? location.trim() : '';
 
       if (!normalizedLocation || normalizedLocation.length < 3 || normalizedLocation === '[object Object]' || normalizedLocation === 'N/A') {
-        console.log('Skipping bad geocode input:', { rawLocation, type: typeof rawLocation, normalizedLocation });
         return Promise.resolve(null);
       }
 
