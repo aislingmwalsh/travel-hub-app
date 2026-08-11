@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Inbox, Building2, Trash2, Edit2 } from 'lucide-react';
+import { Calendar, Settings, Inbox, Building2, Trash2, Edit2, MapPin } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -577,10 +577,27 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           const isCheckOut = acc.endDate === dateStr;
                           const badgeLabel = isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : 'Accommodation');
                           const isEditingThisHotel = editingCardId === acc.id;
+                          const cardBgClass = isCheckIn
+                            ? 'bg-white border border-emerald-200'
+                            : isCheckOut
+                              ? 'bg-white border border-orange-200'
+                              : 'bg-white border border-amber-200';
+                          const badgeColorClass = isCheckIn
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : isCheckOut
+                              ? 'bg-orange-50 text-orange-700'
+                              : 'bg-amber-50 text-amber-700';
+                          const iconColorClass = isCheckIn
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : isCheckOut
+                              ? 'bg-orange-50 text-orange-600'
+                              : 'bg-amber-50 text-amber-600';
+                          const textColorClass = isCheckIn ? 'text-emerald-700' : isCheckOut ? 'text-orange-700' : 'text-amber-700';
+                          const costColorClass = isCheckIn ? 'text-emerald-700' : isCheckOut ? 'text-orange-700' : 'text-amber-700';
 
                           if (isEditingThisHotel) {
                             return (
-                              <div key={acc.id} className="bg-amber-50 border border-amber-300 p-4 rounded-2xl shadow-sm space-y-3">
+                              <div key={acc.id} className={`${cardBgClass} p-4 rounded-2xl shadow-sm space-y-3`}>
                                 <h6 className="font-bold text-amber-950 text-xs uppercase tracking-wider">Edit Accommodation</h6>
                                 <div className="space-y-2">
                                   <input 
@@ -640,24 +657,29 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           }
 
                           return (
-                            <div key={acc.id} className="bg-amber-50 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
+                            <div key={acc.id} className={`${cardBgClass} p-3 rounded-2xl flex items-center justify-between shadow-sm`}>
                               <div className="flex items-center gap-3">
-                                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+                                <div className={`${iconColorClass} p-2 rounded-xl shrink-0`}>
                                   <Building2 className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`${badgeColorClass} font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-[10px]`}>
                                       {badgeLabel}
                                     </span>
-                                    <h5 className="font-bold text-amber-950 text-sm">{acc.title}</h5>
+                                    <h5 className="font-semibold text-slate-900 text-sm leading-tight">{acc.title}</h5>
                                   </div>
-                                  {acc.location && <p className="text-xs text-amber-800 mt-0.5">{acc.location}</p>}
+                                  {acc.location && (
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                                      <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                                      <span>{acc.location}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
                                 {acc.cost > 0 && (
-                                  <span className="text-xs font-bold text-amber-900">{currency} {Number(acc.cost).toFixed(2)}</span>
+                                  <span className={`${costColorClass} text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border border-current/20 inline-flex items-center`}>{currency} {Number(acc.cost).toFixed(2)}</span>
                                 )}
                                 {!isGuest && (
                                   <div className="flex items-center gap-1">
