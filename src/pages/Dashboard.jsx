@@ -51,7 +51,7 @@ export default function Dashboard({ user, onSelectTrip }) {
   const [currency, setCurrency] = useState('EUR');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     async function fetchUserTrips() {
       if (!user) return;
       try {
@@ -64,15 +64,25 @@ export default function Dashboard({ user, onSelectTrip }) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
-          // Check if current user exists in the members map with an owner or collaborator/guest role
+          // Check if current user exists in the members map
           const memberRole = tripData.members && tripData.members[user.uid];
+
+          // Safely extract the role string whether it's stored as a string or an object
+          let resolvedRole = 'OWNER';
+          if (memberRole) {
+            if (typeof memberRole === 'object' && memberRole !== null) {
+              resolvedRole = (memberRole.role || 'owner').toUpperCase();
+            } else if (typeof memberRole === 'string') {
+              resolvedRole = memberRole.toUpperCase();
+            }
+          }
 
           // If the user is in the members map OR if they created it (fallback), show the trip
           if (memberRole || tripData.createdBy === user.uid) {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              userRole: memberRole ? (typeof memberRole === 'object' ? memberRole.role.toUpperCase() : memberRole.toUpperCase()) : 'OWNER'
+              userRole: resolvedRole
             });
           }
         }
