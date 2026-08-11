@@ -1,39 +1,65 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe } from 'lucide-react';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, setDoc, arrayUnion } from 'firebase/firestore';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus } from 'lucide-react';
 
-export default function TripAdminModal({ isOpen, onClose }) {
-  const [trips, setTrips] = useState([]);
+export default function TripAdminModal({ isOpen, onClose, currentUser }) {
+  const [authorizedTrips, setAuthorizedTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState('');
   const [activeTab, setActiveTab] = useState('members');
   
   const [members, setMembers] = useState([]);
   const [vaultLinks, setVaultLinks] = useState([]);
+  const [selectedTripRole, setSelectedTripRole] = useState('Guest');
   
+  // Invite Member Form
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('Collaborator');
+
   // Vault Form States
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Booking');
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !currentUser) return;
 
-    async function fetchTrips() {
+    async function fetchAuthorizedTrips() {
       try {
         const snap = await getDocs(collection(db, "trips"));
-        const tripList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setTrips(tripList);
+        const tripList = [];
+        const userEmail = currentUser.email?.toLowerCase();
+
+        for (const docSnap of snap.docs) {
+          const tripData = docSnap.data();
+          const tripId = docSnap.id;
+
+          const isOwner = tripData.createdBy === currentUser.uid || tripData.ownerId === currentUser.uid;
+          const isMember = tripData.membersList && Array.isArray(tripData.membersList) && 
+                           tripData.membersList.map(e => e.toLowerCase()).includes(userEmail);
+
+          if (isOwner || isMember) {
+            tripList.push({
+              id: tripId,
+              title: tripData.title || 'Untitled Trip',
+              destination: tripData.destination || '',
+              userRole: isOwner ? 'Owner' : 'Collaborator'
+            });
+          }
+        }
+
+        setAuthorizedTrips(tripList);
         if (tripList.length > 0) {
           setSelectedTripId(tripList[0].id);
+          setSelectedTripRole(tripList[0].userRole);
         }
       } catch (err) {
-        console.error("Error fetching trips for admin modal:", err);
+        console.error("Error fetching authorized trips for modal:", err);
       }
     }
-    fetchTrips();
-  }, [isOpen]);
+    fetchAuthorizedTrips();
+  }, [isOpen, currentUser]);
 
   useEffect(() => {
     if (!selectedTripId) return;
@@ -45,12 +71,47 @@ export default function TripAdminModal({ isOpen, onClose }) {
 
         const vaultSnap = await getDocs(collection(db, "trips", selectedTripId, "vault"));
         setVaultLinks(vaultSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+        const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
+        if (currentTrip) setSelectedTripRole(currentTrip.userRole);
       } catch (err) {
         console.error("Error fetching trip details:", err);
       }
     }
     fetchTripDetails();
-  }, [selectedTripId]);
+  }, [selectedTripId, authorizedTrips]);
+
+  const isOwner = selectedTripRole?.toLowerCase() === 'owner';
+
+  const handleInviteMember = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !isOwner) return;
+
+    const emailTrimmed = inviteEmail.trim().toLowerCase();
+
+    try {
+      // Add to members subcollection
+      const memberRef = doc(collection(db, "trips", selectedTripId, "members"));
+      await setDoc(memberRef, {
+        email: emailTrimmed,
+        role: inviteRole,
+        joinedAt: new Date()
+      });
+
+      // Update main trip document membersList array so dashboard queries catch it instantly
+      const tripRef = doc(db, "trips", selectedTripId);
+      await updateDoc(tripRef, {
+        membersList: arrayUnion(emailTrimmed)
+      });
+
+      setMembers(prev => [...prev, { id: memberRef.id, email: emailTrimmed, role: inviteRole }]);
+      setInviteEmail('');
+      alert("Collaborator invited successfully!");
+    } catch (err) {
+      console.error("Error inviting member:", err);
+      alert("Failed to invite collaborator.");
+    }
+  };
 
   const handleAddLink = async (e) => {
     e.preventDefault();
@@ -91,7 +152,7 @@ export default function TripAdminModal({ isOpen, onClose }) {
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-900 text-lg">Settings & Vault</h3>
-            <p className="text-xs text-slate-500">Manage members and reference documents for your trips</p>
+            <p className="text-xs text-slate-500">Manage members and reference documents for your managed trips</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
             <X className="w-5 h-5 text-slate-500" />
@@ -106,12 +167,12 @@ export default function TripAdminModal({ isOpen, onClose }) {
             onChange={(e) => setSelectedTripId(e.target.value)}
             className="w-full bg-white border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 cursor-pointer shadow-sm"
           >
-            {trips.length === 0 ? (
-              <option value="">No trips available</option>
+            {authorizedTrips.length === 0 ? (
+              <option value="">No managed trips available</option>
             ) : (
-              trips.map(trip => (
+              authorizedTrips.map(trip => (
                 <option key={trip.id} value={trip.id}>
-                  {trip.title} ({trip.destination || 'No Destination'})
+                  {trip.title} ({trip.destination || 'No Destination'}) — Role: {trip.userRole}
                 </option>
               ))
             )}
@@ -137,42 +198,64 @@ export default function TripAdminModal({ isOpen, onClose }) {
         {/* Tab Content Area */}
         <div className="p-6 overflow-y-auto flex-grow space-y-6">
           
-          {trips.length === 0 ? (
+          {authorizedTrips.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs">
-              No trips found in database.
+              No managed trips available.
             </div>
           ) : (
             <>
               {/* TAB 1: MEMBERS & ROLES */}
               {activeTab === 'members' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
-                    <span className="text-xs text-slate-500">{members.length} Total</span>
-                  </div>
+                <div className="space-y-6">
+                  
+                  {/* Invite Form (Owner Only) */}
+                  {isOwner && (
+                    <form onSubmit={handleInviteMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Invite Collaborator</h4>
+                      <div className="flex gap-2">
+                        <input 
+                          type="email" 
+                          placeholder="friend@example.com" 
+                          value={inviteEmail} 
+                          onChange={(e) => setInviteEmail(e.target.value)} 
+                          required 
+                          className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                        />
+                        <select 
+                          value={inviteRole} 
+                          onChange={(e) => setInviteRole(e.target.value)}
+                          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                        >
+                          <option value="Collaborator">Collaborator</option>
+                          <option value="Guest">Guest</option>
+                        </select>
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                          <UserPlus className="w-3.5 h-3.5" /> Invite
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
-                  {members.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
-                      No explicit member records found for this trip.
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
+                      <span className="text-xs text-slate-500">{members.length} Total</span>
                     </div>
-                  ) : (
+
                     <div className="space-y-2">
                       {members.map(member => (
                         <div key={member.id} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                           <div>
-                            <p className="font-bold text-slate-900 text-sm">{member.name || member.email}</p>
-                            <p className="text-[11px] text-slate-500">{member.email}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-xs font-semibold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                            <p className="font-bold text-slate-900 text-sm">{member.email}</p>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-200 px-2 py-0.5 rounded">
                               {member.role || 'Guest'}
                             </span>
                           </div>
+                          <Shield className="w-4 h-4 text-slate-400" />
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 

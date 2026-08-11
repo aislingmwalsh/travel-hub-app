@@ -1,8 +1,8 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
+import { collection, getDocs, query, orderBy, addDoc, doc, setDoc } from 'firebase/firestore';
+import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 
 function getSeasonalTheme(startDateStr) {
   if (!startDateStr) return { bg: 'bg-white', border: 'border-slate-200', badge: 'bg-blue-50 text-blue-600 border-blue-100' };
@@ -42,27 +42,95 @@ export default function Dashboard({ user, onSelectTrip }) {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Create Trip Modal States
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [destination, setDestination] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [currency, setCurrency] = useState('EUR');
+  const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
-    async function fetchTrips() {
+    async function fetchUserTrips() {
+      if (!user) return;
       try {
         const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
         const snap = await getDocs(q);
         
-        const tripList = snap.docs.map(d => ({ 
-          id: d.id, 
-          ...d.data(),
-          userRole: 'Owner' 
-        }));
+        const authorizedTrips = [];
+        const userEmail = user.email?.toLowerCase();
 
-        setTrips(tripList);
+        for (const docSnap of snap.docs) {
+          const tripData = docSnap.data();
+          const tripId = docSnap.id;
+
+          const isOwner = tripData.createdBy === user.uid || tripData.ownerId === user.uid;
+          const isMember = tripData.membersList && Array.isArray(tripData.membersList) && 
+                           tripData.membersList.map(e => e.toLowerCase()).includes(userEmail);
+
+          if (isOwner || isMember) {
+            authorizedTrips.push({
+              id: tripId,
+              ...tripData,
+              userRole: isOwner ? 'Owner' : 'Collaborator'
+            });
+          }
+        }
+
+        setTrips(authorizedTrips);
       } catch (err) {
-        console.error("Error fetching trips:", err);
+        console.error("Error fetching authorized trips:", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchTrips();
-  }, []);
+    fetchUserTrips();
+  }, [user]);
+
+  const handleCreateTrip = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || !startDate || !user) return;
+
+    setSubmitting(true);
+    try {
+      // 1. Create main trip document with strict security fields & membersList array
+      const newTripRef = await addDoc(collection(db, "trips"), {
+        title: title.trim(),
+        destination: destination.trim(),
+        startDate: startDate,
+        endDate: endDate || startDate,
+        currency: currency,
+        createdBy: user.uid,
+        ownerId: user.uid,
+        membersList: [user.email.toLowerCase()],
+        createdAt: new Date()
+      });
+
+      // 2. Automatically register creator as Owner in members subcollection
+      await setDoc(doc(db, "trips", newTripRef.id, "members", user.uid), {
+        email: user.email.toLowerCase(),
+        role: 'Owner',
+        joinedAt: new Date()
+      });
+
+      // Reset form & close modal
+      setTitle('');
+      setDestination('');
+      setStartDate('');
+      setEndDate('');
+      setCurrency('EUR');
+      setIsCreateModalOpen(false);
+
+      // Refresh trip list
+      onSelectTrip(newTripRef.id);
+    } catch (err) {
+      console.error("Error creating trip:", err);
+      alert("Failed to create trip. Check console for details.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const filteredTrips = trips.filter(trip => {
     const today = new Date().toISOString().split('T')[0];
@@ -87,26 +155,36 @@ export default function Dashboard({ user, onSelectTrip }) {
           <p className="text-xs text-slate-500 mt-0.5">Select a trip to view and manage its itinerary.</p>
         </div>
 
-        {/* Status Filter Bar */}
-        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
+        <div className="flex items-center gap-3">
+          {/* Status Filter Bar */}
+          <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
+            <button 
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              All ({trips.length})
+            </button>
+            <button 
+              onClick={() => setStatusFilter('upcoming')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Upcoming
+            </button>
+            <button 
+              onClick={() => setStatusFilter('past')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'past' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Past
+            </button>
+          </div>
+
+          {/* Create New Trip Button */}
           <button 
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-2xl transition cursor-pointer shadow-sm"
           >
-            All ({trips.length})
-          </button>
-          <button 
-            onClick={() => setStatusFilter('upcoming')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            Upcoming
-          </button>
-          <button 
-            onClick={() => setStatusFilter('past')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'past' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            Past
+            <Plus className="w-4 h-4" /> Create Trip
           </button>
         </div>
       </div>
@@ -114,7 +192,7 @@ export default function Dashboard({ user, onSelectTrip }) {
       {filteredTrips.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
           <p className="text-sm font-semibold text-slate-700">No trips found matching this filter</p>
-          <p className="text-xs text-slate-400">Create your first trip to start planning.</p>
+          <p className="text-xs text-slate-400">Click "Create Trip" above to start planning your first itinerary.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -161,6 +239,99 @@ export default function Dashboard({ user, onSelectTrip }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Create Trip Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900 text-lg">Create New Trip</h3>
+              <button onClick={() => setIsCreateModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTrip} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Trip Title *</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Summer in Tokyo" 
+                  value={title} 
+                  onChange={(e) => setTitle(e.target.value)} 
+                  required 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Destination</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Tokyo, Japan" 
+                  value={destination} 
+                  onChange={(e) => setDestination(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Start Date *</label>
+                  <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">End Date</label>
+                  <input 
+                    type="date" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Currency</label>
+                <select 
+                  value={currency} 
+                  onChange={(e) => setCurrency(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="EUR">EUR (€)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AUD">AUD ($)</option>
+                  <option value="JPY">JPY (¥)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => setIsCreateModalOpen(false)} 
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submitting} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Creating...' : 'Create Trip'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
