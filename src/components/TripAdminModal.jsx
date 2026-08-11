@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle } from 'lucide-react';
+// Add Tag to your imports from 'lucide-react':
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag } from 'lucide-react';
 
 export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
