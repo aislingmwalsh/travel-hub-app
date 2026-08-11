@@ -1,14 +1,18 @@
+// src/App.jsx
 import React, { useEffect, useState } from 'react';
 import { auth } from './firebase';
 import { onAuthStateChanged, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import TripDetails from './components/TripDetails'; // <--- 1. Import your new details component
+import TripDetails from './components/TripDetails'; 
+import TripAdminModal from './components/TripAdminModal'; // 👈 1. Import your administration modal
+import { Settings } from 'lucide-react'; // 👈 2. Import icon for the settings button
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedTripId, setSelectedTripId] = useState(null); // <--- 2. Track which trip is open
+  const [selectedTripId, setSelectedTripId] = useState(null);
+  const [isGlobalAdminOpen, setIsGlobalAdminOpen] = useState(false); // 👈 3. Track modal state
 
   useEffect(() => {
     // 1. The "Link Catcher"
@@ -49,26 +53,51 @@ export default function App() {
     );
   }
 
-  // If not logged in, show Login
+  // If not logged in, show Login (no header or settings needed here)
   if (!user) {
     return <Login />;
   }
 
-  // <--- 3. If a trip is selected, show the TripDetails page instead of the Dashboard
-  if (selectedTripId) {
-    return (
-      <TripDetails 
-        tripId={selectedTripId} 
-        onBack={() => setSelectedTripId(null)} 
-      />
-    );
-  }
-
-  // Otherwise, show the Dashboard and pass down the function to select a trip
   return (
-    <Dashboard 
-      user={user} 
-      onSelectTrip={(tripId) => setSelectedTripId(tripId)} 
-    />
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* 👈 4. Persistent Global Header with Settings & Vault Button */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <h1 
+          onClick={() => setSelectedTripId(null)} 
+          className="font-bold text-slate-900 text-lg cursor-pointer hover:text-blue-600 transition"
+        >
+          Travel Planner
+        </h1>
+        
+        <button 
+          onClick={() => setIsGlobalAdminOpen(true)}
+          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+        >
+          <Settings className="w-4 h-4 text-blue-600" /> Settings & Vault
+        </button>
+      </header>
+
+      {/* Main App Workspace */}
+      <main className="flex-grow">
+        {selectedTripId ? (
+          <TripDetails 
+            tripId={selectedTripId} 
+            onBack={() => setSelectedTripId(null)} 
+          />
+        ) : (
+          <Dashboard 
+            user={user} 
+            onSelectTrip={(tripId) => setSelectedTripId(tripId)} 
+          />
+        )}
+      </main>
+
+      {/* 👈 5. Global Admin Modal rendered on top of everything */}
+      <TripAdminModal 
+        isOpen={isGlobalAdminOpen}
+        onClose={() => setIsGlobalAdminOpen(false)}
+        currentUserId={user?.uid}
+      />
+    </div>
   );
 }
