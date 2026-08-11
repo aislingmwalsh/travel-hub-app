@@ -4,25 +4,91 @@ import { db } from '../firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter } from 'lucide-react';
 
+// Helper function to assign seasonal themes based on month or destination
+function getSeasonalTheme(startDateStr) {
+  if (!startDateStr) return { bg: 'bg-white', border: 'border-slate-200', badge: 'bg-blue-50 text-blue-600 border-blue-100' };
+  
+  const month = new Date(startDateStr).getMonth(); // 0 = Jan, 11 = Dec
+  
+  // Spring (Mar - May): Fresh Greens/Teals
+  if (month >= 2 && month <= 4) {
+    return {
+      bg: 'bg-gradient-to-br from-emerald-50/40 via-white to-white',
+      border: 'border-emerald-200/60',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    };
+  }
+  // Summer (Jun - Aug): Warm Ambers/Yellows
+  if (month >= 5 && month <= 7) {
+    return {
+      bg: 'bg-gradient-to-br from-amber-50/40 via-white to-white',
+      border: 'border-amber-200/60',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200'
+    };
+  }
+  // Autumn (Sep - Nov): Rich Oranges/Bronzes
+  if (month >= 8 && month <= 10) {
+    return {
+      bg: 'bg-gradient-to-br from-orange-50/40 via-white to-white',
+      border: 'border-orange-200/60',
+      badge: 'bg-orange-50 text-orange-700 border-orange-200'
+    };
+  }
+  // Winter (Dec - Feb): Crisp Blues/Indigos
+  return {
+    bg: 'bg-gradient-to-br from-blue-50/40 via-white to-white',
+    border: 'border-blue-200/60',
+    badge: 'bg-blue-50 text-blue-700 border-blue-200'
+  };
+}
+
 export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'past'
 
   useEffect(() => {
-    async function fetchTrips() {
+    async function fetchUserTrips() {
+      if (!user) return;
       try {
         const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
         const snap = await getDocs(q);
-        setTrips(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        
+        const authorizedTrips = [];
+
+        for (const tripDoc of snap.docs) {
+          const tripId = tripDoc.id;
+          const tripData = tripDoc.data();
+
+          // Fetch the members subcollection for this specific trip
+          const membersSnap = await getDocs(collection(db, "trips", tripId, "members"));
+          const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          // STRICT CHECK: User must be explicitly listed in the members subcollection by email or UID
+          const userMemberRecord = membersList.find(m => 
+            (m.email && m.email.toLowerCase() === user.email?.toLowerCase()) || 
+            m.id === user.uid ||
+            m.uid === user.uid
+          );
+
+          if (userMemberRecord) {
+            authorizedTrips.push({
+              id: tripId,
+              ...tripData,
+              userRole: userMemberRecord.role || 'Guest'
+            });
+          }
+        }
+
+        setTrips(authorizedTrips);
       } catch (err) {
-        console.error("Error fetching trips:", err);
+        console.error("Error fetching user trips:", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchTrips();
-  }, []);
+    fetchUserTrips();
+  }, [user]);
 
   const filteredTrips = trips.filter(trip => {
     const today = new Date().toISOString().split('T')[0];
@@ -74,46 +140,53 @@ export default function Dashboard({ user, onSelectTrip }) {
       {filteredTrips.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
           <p className="text-sm font-semibold text-slate-700">No trips found matching this filter</p>
-          <p className="text-xs text-slate-400">Create your first trip to start planning.</p>
+          <p className="text-xs text-slate-400">You do not have any trips in this category.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrips.map(trip => (
-            <div 
-              key={trip.id} 
-              onClick={() => onSelectTrip && onSelectTrip(trip.id)}
-              className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between cursor-pointer group"
-            >
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
-                    {trip.currency || 'EUR'}
+          {filteredTrips.map(trip => {
+            const theme = getSeasonalTheme(trip.startDate);
+            
+            return (
+              <div 
+                key={trip.id} 
+                onClick={() => onSelectTrip && onSelectTrip(trip.id)}
+                className={`${theme.bg} p-6 rounded-3xl border ${theme.border} shadow-sm hover:shadow-md transition flex flex-col justify-between cursor-pointer group`}
+              >
+                <div className="space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-white/80 px-2.5 py-1 rounded-full border border-slate-200 shadow-xs">
+                      {trip.currency || 'EUR'}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-xs ${theme.badge}`}>
+                      {trip.userRole}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition">{trip.title}</h3>
+                    {trip.destination && (
+                      <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+                        <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                        <span className="truncate">{trip.destination}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>{trip.startDate}</span>
+                  </div>
+
+                  <span className="flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:underline">
+                    Open Itinerary <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
-
-                <div>
-                  <h3 className="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition">{trip.title}</h3>
-                  {trip.destination && (
-                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                      <span className="truncate">{trip.destination}</span>
-                    </div>
-                  )}
-                </div>
               </div>
-
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{trip.startDate}</span>
-                </div>
-
-                <span className="flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:underline">
-                  Open Itinerary <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
