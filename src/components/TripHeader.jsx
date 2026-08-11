@@ -18,6 +18,13 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
 
   const handleSave = async (e) => {
     e.preventDefault();
+
+    // Validate that end date is not before start date
+    if (startDate && endDate && endDate < startDate) {
+      alert("The End Date cannot be earlier than the Start Date.");
+      return;
+    }
+
     try {
       const tripRef = doc(db, "trips", tripId);
       const updatedFields = { 
@@ -115,7 +122,14 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                min={startDate} // Constrains selection to dates on or after start date
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" 
+              />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Currency</label>
