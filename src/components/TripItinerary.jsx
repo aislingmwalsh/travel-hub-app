@@ -408,6 +408,68 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       ) : (
                         unscheduledItems.map((item, index) => {
                           if (item.category === 'Accommodation') {
+                            const isEditingThisHotel = editingCardId === item.id;
+                            if (isEditingThisHotel) {
+                              return (
+                                <div key={item.id} className="bg-amber-50 border border-amber-300 p-4 rounded-2xl shadow-sm space-y-3">
+                                  <h6 className="font-bold text-amber-950 text-xs uppercase tracking-wider">Edit Accommodation</h6>
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="text" 
+                                      value={editTitle} 
+                                      onChange={(e) => setEditTitle(e.target.value)} 
+                                      placeholder="Hotel Name" 
+                                      className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
+                                    />
+                                    <input 
+                                      type="text" 
+                                      value={editLocation} 
+                                      onChange={(e) => setEditLocation(e.target.value)} 
+                                      placeholder="Location / Address" 
+                                      className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-in</label>
+                                        <input 
+                                          type="date" 
+                                          value={editDate} 
+                                          onChange={(e) => setEditDate(e.target.value)} 
+                                          min={effectiveStartDate} 
+                                          max={effectiveEndDate} 
+                                          className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-out</label>
+                                        <input 
+                                          type="date" 
+                                          value={editEndDate} 
+                                          onChange={(e) => setEditEndDate(e.target.value)} 
+                                          min={editDate || effectiveStartDate} 
+                                          max={effectiveEndDate} 
+                                          className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <input 
+                                        type="number" 
+                                        value={editCost} 
+                                        onChange={(e) => setEditCost(e.target.value)} 
+                                        placeholder="Total Cost" 
+                                        className="w-1/2 bg-white border border-amber-200 rounded-xl px-3 py-1.5 text-xs" 
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end gap-2 pt-1">
+                                    <button onClick={() => setEditingCardId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs cursor-pointer">Cancel</button>
+                                    <button onClick={(e) => handleSaveEdit(item.id, e)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs cursor-pointer">Save Changes</button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div key={item.id} className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
                                 <div className="flex items-center gap-3">
@@ -422,8 +484,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                 </div>
                                 {!isGuest && (
                                   <div className="flex items-center gap-2">
-                                    <button onClick={(e) => handleStartEdit(item, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition"><Edit2 className="w-4 h-4" /></button>
-                                    <button onClick={(e) => handleDeleteItem(item.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition"><Trash2 className="w-4 h-4" /></button>
+                                    <button onClick={(e) => handleStartEdit(item, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
+                                    <button onClick={(e) => handleDeleteItem(item.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
                                   </div>
                                 )}
                               </div>
@@ -510,13 +572,75 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                 {!isDayCollapsed && (
                   <div className="p-4 space-y-4">
                     
-                    {/* 🏨 ACCOMMODATION BANNERS WITH EDIT/DELETE */}
+                    {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
                     {activeAccommodations.length > 0 && (
                       <div className="space-y-2">
                         {activeAccommodations.map(acc => {
                           const isCheckIn = acc.date === dateStr;
                           const isCheckOut = acc.endDate === dateStr;
                           const badgeLabel = isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : 'Accommodation');
+                          const isEditingThisHotel = editingCardId === acc.id;
+
+                          if (isEditingThisHotel) {
+                            return (
+                              <div key={acc.id} className="bg-amber-50 border border-amber-300 p-4 rounded-2xl shadow-sm space-y-3">
+                                <h6 className="font-bold text-amber-950 text-xs uppercase tracking-wider">Edit Accommodation</h6>
+                                <div className="space-y-2">
+                                  <input 
+                                    type="text" 
+                                    value={editTitle} 
+                                    onChange={(e) => setEditTitle(e.target.value)} 
+                                    placeholder="Hotel Name" 
+                                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
+                                  />
+                                  <input 
+                                    type="text" 
+                                    value={editLocation} 
+                                    onChange={(e) => setEditLocation(e.target.value)} 
+                                    placeholder="Location / Address" 
+                                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
+                                  />
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-in</label>
+                                      <input 
+                                        type="date" 
+                                        value={editDate} 
+                                        onChange={(e) => setEditDate(e.target.value)} 
+                                        min={effectiveStartDate} 
+                                        max={effectiveEndDate} 
+                                        className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-out</label>
+                                      <input 
+                                        type="date" 
+                                        value={editEndDate} 
+                                        onChange={(e) => setEditEndDate(e.target.value)} 
+                                        min={editDate || effectiveStartDate} 
+                                        max={effectiveEndDate} 
+                                        className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <input 
+                                      type="number" 
+                                      value={editCost} 
+                                      onChange={(e) => setEditCost(e.target.value)} 
+                                      placeholder="Total Cost" 
+                                      className="w-1/2 bg-white border border-amber-200 rounded-xl px-3 py-1.5 text-xs" 
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button onClick={() => setEditingCardId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs cursor-pointer">Cancel</button>
+                                  <button onClick={(e) => handleSaveEdit(acc.id, e)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs cursor-pointer">Save Changes</button>
+                                </div>
+                              </div>
+                            );
+                          }
 
                           return (
                             <div key={acc.id} className="bg-amber-50 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
