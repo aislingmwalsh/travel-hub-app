@@ -68,7 +68,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
   };
 
-  const isGuest = userRole?.toLowerCase() === 'guest';
+  const role = String(member.role || '').toLowerCase() === 'guest';
 
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
   const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;

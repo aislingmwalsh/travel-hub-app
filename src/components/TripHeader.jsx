@@ -28,7 +28,8 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
     }
   };
 
-  const isOwner = userRole?.toLowerCase() === 'owner';
+ // Update that line in TripHeader.jsx to this:
+  const isOwner = String(userRole || '').toLowerCase() === 'owner';
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 mb-8">
