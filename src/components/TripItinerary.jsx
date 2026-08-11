@@ -88,6 +88,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [editLocation, setEditLocation] = useState('');
   const [editDetails, setEditDetails] = useState('');
   const [editCost, setEditCost] = useState('');
+  const [editPaidInAdvance, setEditPaidInAdvance] = useState(false);
 
   const [predictions, setPredictions] = useState([]);
   const [showPredictions, setShowPredictions] = useState(false);
@@ -238,6 +239,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setEditLocation(item.location || '');
     setEditDetails(item.details || '');
     setEditCost(item.cost ? item.cost.toString() : '');
+    setEditPaidInAdvance(Boolean(item.paidInAdvance));
   };
 
   const handleSaveEdit = async (itemId, e) => {
@@ -255,7 +257,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       location: editLocation.trim(),
       details: editDetails.trim(),
       cost: editCost ? parseFloat(editCost) : 0,
-      paidInAdvance: Boolean(itemToUpdate?.paidInAdvance)
+      paidInAdvance: Boolean(editPaidInAdvance)
     };
 
     try {
@@ -311,19 +313,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   });
 
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-
-  const handleTogglePaidInAdvance = async (itemId, nextValue) => {
-    const itemToUpdate = itineraryItems.find(i => i.id === itemId);
-    if (!itemToUpdate) return;
-
-    try {
-      await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { paidInAdvance: nextValue });
-      setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, paidInAdvance: nextValue } : i));
-    } catch (err) {
-      console.error("Error updating paid-in-advance flag:", err);
-      alert("Failed to update payment status.");
-    }
-  };
 
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -520,7 +509,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                   setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
                                 } catch (err) { console.error(err); }
                               }}
-                              onTogglePaidInAdvance={handleTogglePaidInAdvance}
+                              editPaidInAdvance={editPaidInAdvance} setEditPaidInAdvance={setEditPaidInAdvance}
                               editTitle={editTitle} setEditTitle={setEditTitle}
                               editDate={editDate} setEditDate={setEditDate} 
                               editEndDate={editEndDate} setEditEndDate={setEditEndDate}
