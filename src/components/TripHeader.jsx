@@ -28,8 +28,9 @@ export default function TripHeader({ tripId, tripData, userRole, onOpenMembersMo
     }
   };
 
- // Update that line in TripHeader.jsx to this:
-  const isOwner = String(userRole || '').toLowerCase() === 'owner';
+  // Safely extract role whether it's a string or an object wrapper
+  const unwrappedRole = typeof userRole === 'object' && userRole !== null ? userRole.role : userRole;
+  const isOwner = String(unwrappedRole || '').trim().toLowerCase() === 'owner';
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 mb-8">
