@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { Calendar, MapPin, Edit3, Save, X, Tag } from 'lucide-react';
+import { Calendar, MapPin, Edit3, Save, X, Tag, Camera } from 'lucide-react';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
@@ -14,17 +14,27 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const [endDate, setEndDate] = useState(tripData.endDate || '');
   const [status, setStatus] = useState(tripData.status || 'Planning');
   const [currency, setCurrency] = useState(tripData.currency || 'EUR');
+  const [photoAlbumUrl, setPhotoAlbumUrl] = useState(tripData.photoAlbumUrl || '');
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
       const tripRef = doc(db, "trips", tripId);
-      const updatedFields = { title, destination, startDate, endDate, status, currency };
+      const updatedFields = { 
+        title, 
+        destination, 
+        startDate, 
+        endDate, 
+        status, 
+        currency, 
+        photoAlbumUrl: photoAlbumUrl.trim() 
+      };
       await updateDoc(tripRef, updatedFields);
       if (onTripUpdate) onTripUpdate(updatedFields);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating trip details:", error);
+      alert("Failed to update trip details.");
     }
   };
 
@@ -51,6 +61,16 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
               <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-500" /> {tripData.destination}</span>
               <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-500" /> {tripData.startDate} to {tripData.endDate}</span>
               <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-500" /> Currency: {tripData.currency || 'EUR'}</span>
+              {tripData.photoAlbumUrl && (
+                <a 
+                  href={tripData.photoAlbumUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-semibold"
+                >
+                  <Camera className="w-4 h-4" /> Shared Album
+                </a>
+              )}
             </div>
           </div>
 
@@ -105,6 +125,16 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
                 <option value="GBP">GBP (£)</option>
                 <option value="AUD">AUD ($)</option>
               </select>
+            </div>
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Google Photos Shared Album URL</label>
+              <input 
+                type="url" 
+                placeholder="https://photos.app.goo.gl/..." 
+                value={photoAlbumUrl} 
+                onChange={(e) => setPhotoAlbumUrl(e.target.value)} 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm" 
+              />
             </div>
           </div>
 
