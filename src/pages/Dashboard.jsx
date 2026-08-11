@@ -72,7 +72,7 @@ export default function Dashboard({ user, onSelectTrip }) {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              userRole: memberRole ? memberRole.toUpperCase() : 'OWNER'
+              userRole: memberRole ? (typeof memberRole === 'object' ? memberRole.role.toUpperCase() : memberRole.toUpperCase()) : 'OWNER'
             });
           }
         }
@@ -102,8 +102,11 @@ export default function Dashboard({ user, onSelectTrip }) {
         currency: currency,
         createdBy: user.uid,
         members: {
-          [user.uid]: 'owner' // Matches your rule: resource.data.members[request.auth.uid] == 'owner'
-        },
+          [user.uid]: {
+            role: 'owner',
+            email: user.email
+          }
+        }, // 👈 Comma added here correctly!
         createdAt: new Date()
       });
 

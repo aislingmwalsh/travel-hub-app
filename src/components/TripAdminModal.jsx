@@ -1,7 +1,7 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus } from 'lucide-react';
 
 export default function TripAdminModal({ isOpen, onClose, currentUser }) {
@@ -13,6 +13,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
   const [vaultLinks, setVaultLinks] = useState([]);
   const [selectedTripRole, setSelectedTripRole] = useState('Guest');
   
+  // Invite Member Form
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('collaborator');
+
   // Vault Form States
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -30,7 +34,8 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
-          const memberRole = tripData.members && tripData.members[currentUser.uid];
+          const memberData = tripData.members && tripData.members[currentUser.uid];
+          const memberRole = typeof memberData === 'object' ? memberData?.role : memberData;
 
           if (memberRole || tripData.createdBy === currentUser.uid) {
             tripList.push({
@@ -38,7 +43,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
               title: tripData.title || 'Untitled Trip',
               destination: tripData.destination || '',
               userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
-              members: tripData.members || { [currentUser.uid]: 'owner' } // Fallback to include creator if map is missing
+              members: tripData.members || { [currentUser.uid]: { role: 'owner', email: currentUser.email } }
             });
           }
         }
@@ -67,18 +72,14 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
         const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
         if (currentTrip) {
           setSelectedTripRole(currentTrip.userRole);
-          // Ensure members map always has at least the creator if empty
-          setMembersMap(currentTrip.members && Object.keys(currentTrip.members).length > 0 
-            ? currentTrip.members 
-            : { [currentUser.uid]: 'owner' }
-          );
+          setMembersMap(currentTrip.members || {});
         }
       } catch (err) {
         console.error("Error fetching trip details:", err);
       }
     }
     fetchTripDetails();
-  }, [selectedTripId, authorizedTrips, currentUser]);
+  }, [selectedTripId, authorizedTrips]);
 
   const handleTripSelect = (e) => {
     const tripId = e.target.value;
@@ -86,14 +87,81 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
     const trip = authorizedTrips.find(t => t.id === tripId);
     if (trip) {
       setSelectedTripRole(trip.userRole);
-      setMembersMap(trip.members && Object.keys(trip.members).length > 0 
-        ? trip.members 
-        : { [currentUser.uid]: 'owner' }
-      );
+      setMembersMap(trip.members || {});
     }
   };
 
   const isOwner = selectedTripRole?.toUpperCase() === 'OWNER';
+
+  // Handle Role Change
+  const handleRoleChange = async (targetKey, newRole) => {
+    if (!isOwner) return;
+    try {
+      const updatedMembers = { ...membersMap };
+      if (typeof updatedMembers[targetKey] === 'object') {
+        updatedMembers[targetKey].role = newRole;
+      } else {
+        updatedMembers[targetKey] = newRole;
+      }
+
+      const tripRef = doc(db, "trips", selectedTripId);
+      await updateDoc(tripRef, { members: updatedMembers });
+
+      setMembersMap(updatedMembers);
+      // Update local state in authorizedTrips
+      setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+    } catch (err) {
+      console.error("Error updating role:", err);
+      alert("Failed to update role.");
+    }
+  };
+
+  // Handle Removing Member
+  const handleRemoveMember = async (targetKey) => {
+    if (!isOwner) return;
+    try {
+      const updatedMembers = { ...membersMap };
+      delete updatedMembers[targetKey];
+
+      const tripRef = doc(db, "trips", selectedTripId);
+      await updateDoc(tripRef, { members: updatedMembers });
+
+      setMembersMap(updatedMembers);
+      setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+    } catch (err) {
+      console.error("Error removing member:", err);
+      alert("Failed to remove member.");
+    }
+  };
+
+  // Handle Adding / Inviting Member
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !isOwner) return;
+
+    const emailTrimmed = inviteEmail.trim().toLowerCase();
+    try {
+      // Use email as the identifier key in the map for invited users without known UIDs yet
+      const updatedMembers = {
+        ...membersMap,
+        [emailTrimmed]: {
+          role: inviteRole,
+          email: emailTrimmed
+        }
+      };
+
+      const tripRef = doc(db, "trips", selectedTripId);
+      await updateDoc(tripRef, { members: updatedMembers });
+
+      setMembersMap(updatedMembers);
+      setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+      setInviteEmail('');
+      alert("Collaborator added successfully!");
+    } catch (err) {
+      console.error("Error adding member:", err);
+      alert("Failed to add collaborator.");
+    }
+  };
 
   const handleAddLink = async (e) => {
     e.preventDefault();
@@ -126,11 +194,16 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
 
   if (!isOpen) return null;
 
-  // Convert members object to array for mapping
-  const memberEntries = Object.entries(membersMap).map(([uid, role]) => ({
-    uid,
-    role: typeof role === 'string' ? role.toUpperCase() : 'MEMBER'
-  }));
+  // Format member entries for rendering
+  const memberEntries = Object.entries(membersMap).map(([key, val]) => {
+    const role = typeof val === 'object' ? val?.role : val;
+    const email = typeof val === 'object' ? val?.email : (key.includes('@') ? key : (key === currentUser.uid ? currentUser.email : `User (${key.substring(0, 6)}...)`));
+    return {
+      key,
+      email: email || key,
+      role: (role || 'guest').toLowerCase()
+    };
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -194,26 +267,77 @@ export default function TripAdminModal({ isOpen, onClose, currentUser }) {
             <>
               {/* TAB 1: MEMBERS & ROLES */}
               {activeTab === 'members' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
-                    <span className="text-xs text-slate-500">{memberEntries.length} Total</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {memberEntries.map(member => (
-                      <div key={member.uid} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs">User ID: {member.uid}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700">
-                            {member.role}
-                          </span>
-                        </div>
+                <div className="space-y-6">
+                  
+                  {/* Add Member Form (Owner Only) */}
+                  {isOwner && (
+                    <form onSubmit={handleAddMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Traveler</h4>
+                      <div className="flex gap-2">
+                        <input 
+                          type="email" 
+                          placeholder="traveler@example.com" 
+                          value={inviteEmail} 
+                          onChange={(e) => setInviteEmail(e.target.value)} 
+                          required 
+                          className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                        />
+                        <select 
+                          value={inviteRole} 
+                          onChange={(e) => setInviteRole(e.target.value)}
+                          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                        >
+                          <option value="owner">Owner</option>
+                          <option value="collaborator">Collaborator</option>
+                          <option value="guest">Guest</option>
+                        </select>
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                          <UserPlus className="w-3.5 h-3.5" /> Add
+                        </button>
                       </div>
-                    ))}
+                    </form>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
+                      <span className="text-xs text-slate-500">{memberEntries.length} Total</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {memberEntries.map(member => (
+                        <div key={member.key} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <div>
+                            <p className="font-bold text-slate-900 text-xs">{member.email}</p>
+                            <span className="text-[10px] text-slate-400 font-mono">ID: {member.key}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-3.5 h-3.5 text-slate-400" />
+                            <select 
+                              value={member.role}
+                              disabled={!isOwner}
+                              onChange={(e) => handleRoleChange(member.key, e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
+                            >
+                              <option value="owner">Owner</option>
+                              <option value="collaborator">Collaborator</option>
+                              <option value="guest">Guest</option>
+                            </select>
+
+                            {isOwner && member.key !== currentUser.uid && (
+                              <button 
+                                onClick={() => handleRemoveMember(member.key)}
+                                className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer"
+                                title="Remove Member"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
