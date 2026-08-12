@@ -131,12 +131,13 @@ export default function DailyMapView({ activities, currency, destination }) {
           title: activity.title
         });
 
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="font-family: sans-serif; padding: 6px;">
-              <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
-              <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
-              ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currency} ${Number(activity.cost).toFixed(2)}</p>` : ''}
+const currencySymbol = getCurrencySymbol(currency);
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `
+              <div style="font-family: sans-serif; padding: 6px;">
+                <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
+                <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
+                ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currencySymbol} ${Number(activity.cost).toFixed(2)}</p>` : ''}
             </div>
           `
         });

@@ -46,10 +46,47 @@ function getSeasonalTheme(startDateStr) {
   };
 }
 
+function getRelativeTripTiming(startDateStr, endDateStr) {
+  if (!startDateStr) return '';
+  const parseDate = (str) => {
+    const [year, month, day] = String(str || '').split('-').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(Date.UTC(year, month - 1, day));
+  };
+
+  const start = parseDate(startDateStr);
+  const end = parseDate(endDateStr || startDateStr);
+  if (!start || isNaN(start.getTime())) return '';
+
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const msPerDay = 24 * 60 * 60 * 1000;
+
+  if (todayUtc.getTime() === start.getTime()) {
+    return 'Starts today';
+  }
+
+  if (start.getTime() > todayUtc.getTime()) {
+    const days = Math.round((start.getTime() - todayUtc.getTime()) / msPerDay);
+    return `Starts in ${days} day${days === 1 ? '' : 's'}`;
+  }
+
+  if (end && todayUtc.getTime() <= end.getTime()) {
+    return 'In progress';
+  }
+
+  if (end) {
+    const daysAgo = Math.round((todayUtc.getTime() - end.getTime()) / msPerDay);
+    return `Ended ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago`;
+  }
+
+  return '';
+}
+
 export default function Dashboard({ user, onSelectTrip }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('upcoming');
 
   // Create Trip Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -91,6 +128,7 @@ useEffect(() => {
             authorizedTrips.push({
               id: tripId,
               ...tripData,
+              status: tripData.status || 'Planning',
               userRole: resolvedRole
             });
           }
@@ -167,12 +205,25 @@ useEffect(() => {
     }
   };
 
+  const today = new Date().toISOString().split('T')[0];
+  const upcomingCount = trips.filter(trip => trip.startDate >= today).length;
+  const inProgressCount = trips.filter(trip => trip.status === 'In Progress').length;
+  const pastCount = trips.filter(trip => trip.startDate < today).length;
+
   const filteredTrips = trips.filter(trip => {
-    const today = new Date().toISOString().split('T')[0];
     if (statusFilter === 'upcoming') return trip.startDate >= today;
+    if (statusFilter === 'inprogress') return trip.status === 'In Progress';
     if (statusFilter === 'past') return trip.startDate < today;
     return true;
   });
+
+  const sortedTrips = statusFilter === 'all'
+    ? [...filteredTrips].sort((a, b) => {
+        if (a.status === 'In Progress' && b.status !== 'In Progress') return -1;
+        if (b.status === 'In Progress' && a.status !== 'In Progress') return 1;
+        return 0;
+      })
+    : filteredTrips;
 
   if (loading) {
     return (
@@ -196,19 +247,25 @@ useEffect(() => {
             <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
             <button 
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               All ({trips.length})
             </button>
             <button 
               onClick={() => setStatusFilter('upcoming')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full transition cursor-pointer ${statusFilter === 'upcoming' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
             >
-              Upcoming
+              Upcoming ({upcomingCount})
+            </button>
+            <button 
+              onClick={() => setStatusFilter('inprogress')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full transition cursor-pointer ${statusFilter === 'inprogress' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              In Progress ({inProgressCount})
             </button>
             <button 
               onClick={() => setStatusFilter('past')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${statusFilter === 'past' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full transition cursor-pointer ${statusFilter === 'past' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               Past
             </button>
@@ -231,45 +288,52 @@ useEffect(() => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrips.map(trip => {
+          {sortedTrips.map(trip => {
             const theme = getSeasonalTheme(trip.startDate);
-            
+            const relativeDateLabel = getRelativeTripTiming(trip.startDate, trip.endDate);
+
             return (
               <div 
                 key={trip.id} 
                 onClick={() => onSelectTrip && onSelectTrip(trip.id)}
-                className={`${theme.bg} p-6 rounded-3xl border ${theme.border} shadow-sm hover:shadow-md transition flex flex-col justify-between cursor-pointer group`}
+                className={`${theme.bg} rounded-3xl border ${theme.border} shadow-sm hover:shadow-md transition cursor-pointer group overflow-hidden ${trip.status === 'In Progress' ? 'ring-2 ring-blue-200 border-blue-300' : ''}`}
               >
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-white/80 px-2.5 py-1 rounded-full border border-slate-200 shadow-xs">
-                      {trip.currency || 'EUR'}
-                    </span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-xs ${theme.badge}`}>
-                      {trip.userRole}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition">{trip.title}</h3>
-                    {trip.destination && (
-                      <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                        <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                        <span className="truncate">{trip.destination}</span>
-                      </div>
-                    )}
+                <div className={`px-5 py-4 border-b ${theme.border} bg-white`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-lg text-slate-900 truncate group-hover:text-blue-600 transition">{trip.title}</h3>
+                      {trip.destination && (
+                        <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                          <span className="truncate">{trip.destination}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500 flex-shrink-0">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{relativeDateLabel}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>{trip.startDate}</span>
-                  </div>
+                <div className="p-4 space-y-4 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full ${theme.badge}`}>
+                        {trip.userRole}
+                      </span>
+                      {trip.status && (
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full border border-slate-200 bg-slate-100 text-slate-700">
+                          {trip.status}
+                        </span>
+                      )}
+                    </div>
 
-                  <span className="flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:underline">
-                    Open Itinerary <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
+                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-3 py-1 transition hover:bg-blue-200 hover:text-blue-900">
+                      <span>View itinerary</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
                 </div>
               </div>
             );

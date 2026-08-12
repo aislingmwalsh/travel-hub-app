@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Calendar, MapPin, Edit3, Save, X, Tag, Camera } from 'lucide-react';
+import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
@@ -25,6 +26,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const [status, setStatus] = useState(tripData.status || 'Planning');
   const [currency, setCurrency] = useState(tripData.currency || 'EUR');
   const [photoAlbumUrl, setPhotoAlbumUrl] = useState(tripData.photoAlbumUrl || '');
+  const currencySymbol = getCurrencySymbol(tripData.currency || 'EUR');
 
   // Handle start date change and auto-default end date to the next day
   const handleStartDateChange = (e) => {
@@ -87,7 +89,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
               <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-500" /> {tripData.destination}</span>
               <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-500" /> {tripData.startDate} to {tripData.endDate}</span>
-              <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-500" /> Currency: {tripData.currency || 'EUR'}</span>
+              <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-500" /> Currency: {tripData.currency || 'EUR'} ({currencySymbol})</span>
               {tripData.photoAlbumUrl && (
                 <a 
                   href={tripData.photoAlbumUrl} 

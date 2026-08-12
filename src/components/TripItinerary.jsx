@@ -8,6 +8,7 @@ import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import ItineraryForm from './ItineraryForm';
 import ItineraryCard from './ItineraryCard';
 import DailyMapView from './DailyMapView';
+import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -312,6 +313,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   });
 
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+  const currencySymbol = getCurrencySymbol(currency);
 
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -321,7 +323,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Estimated Trip Budget: <span className="font-bold text-slate-800">{currency} {grandTotalCost.toFixed(2)}</span></p>
+          <p className="text-xs text-slate-500 mt-0.5">Estimated Trip Budget: <span className="font-bold text-slate-800">{currencySymbol} {grandTotalCost.toFixed(2)}</span></p>
         </div>
         <div className="flex items-center gap-3">
           {!isGuest && (
@@ -561,7 +563,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                     <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
                   </div>
                   <div className="flex items-center gap-3">
-                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currency} {dayTotal.toFixed(2)}</span>}
+                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currencySymbol} {dayTotal.toFixed(2)}</span>}
                     {items.length === 0 && activeAccommodations.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>

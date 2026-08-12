@@ -2,6 +2,7 @@
 import React from 'react';
 import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star, Check } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
+import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const CATEGORY_COLORS = {
   Tour: 'bg-purple-50 text-purple-700 border-purple-100',
@@ -31,6 +32,8 @@ export default function ItineraryCard({
 }) {
   const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
   const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
+
+  const currencySymbol = getCurrencySymbol(currency);
 
   return (
     <Draggable key={item.id} draggableId={item.id} index={index}>
@@ -64,7 +67,7 @@ export default function ItineraryCard({
                   </span>
                   <h5 className="font-semibold text-slate-900 text-base">{item.title}</h5>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
-                  {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currency} {Number(item.cost).toFixed(2)}</span>}
+                  {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currencySymbol} {Number(item.cost).toFixed(2)}</span>}
                   {item.paidInAdvance && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">Paid ✅</span>}
                   {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                 </div>
