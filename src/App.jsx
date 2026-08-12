@@ -60,7 +60,7 @@ export default function App() {
           onClick={() => setSelectedTripId(null)} 
           className="font-bold text-slate-900 text-lg cursor-pointer hover:text-blue-600 transition"
         >
-          Travel Planner
+          Away from Home: Your Travel Planner
         </h1>
         
         <button 
