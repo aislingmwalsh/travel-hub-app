@@ -521,13 +521,13 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               );
                             }
 
-                            return (
+                                                        return (
                               <div key={item.id} className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
                                 <div className="flex items-center gap-3">
                                   <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0"><Building2 className="w-4 h-4" /></div>
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">Accommodation</span>
+                                      <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">{item.category}</span>
                                       <h5 className="font-bold text-amber-950 text-sm">{item.title}</h5>
                                     </div>
                                     {item.location && <p className="text-xs text-amber-800 mt-0.5">{item.location}</p>}
@@ -811,7 +811,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                             );
                           }
 
-                          return (
+                                                    return (
                             <div key={acc.id} className={`${cardBgClass} p-3 rounded-2xl flex items-center justify-between shadow-sm`}>
                               <div className="flex items-center gap-3">
                                 <div className={`${iconColorClass} p-2 rounded-xl shrink-0`}>
@@ -820,7 +820,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                 <div>
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`${badgeColorClass} font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-[10px]`}>
-                                      {badgeLabel}
+                                      {isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : acc.category)}
                                     </span>
                                     <h5 className="font-semibold text-slate-900 text-sm leading-tight">{acc.title}</h5>
                                   </div>
