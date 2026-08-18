@@ -1,6 +1,7 @@
 // src/components/DailyMapView.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
+import { getCurrencySymbol } from '../utils/currencyUtils';
 
 export default function DailyMapView({ activities, currency, destination }) {
   const mapRef = useRef(null);
@@ -12,11 +13,11 @@ export default function DailyMapView({ activities, currency, destination }) {
   const forceMapRefresh = (map, centerOverride = null) => {
     if (!map || !window.google?.maps) return;
 
-    window.google.maps.event.trigger(map, 'resize');
+        window.google.maps.event.trigger(map, 'resize');
 
     if (centerOverride) {
       map.setCenter(centerOverride);
-      map.setZoom(14);
+      map.setZoom(12); // Less aggressive zoom-in
       return;
     }
 
@@ -25,9 +26,16 @@ export default function DailyMapView({ activities, currency, destination }) {
       markersRef.current.forEach(marker => bounds.extend(marker.getPosition()));
       if (markersRef.current.length === 1) {
         map.setCenter(bounds.getCenter());
-        map.setZoom(14);
+        map.setZoom(12); // Zoom out standard 14 to 12 when there's only 1 marker
       } else {
         map.fitBounds(bounds);
+        
+        // Add listener to prevent map from zooming in too tight on fitBounds
+        const listener = window.google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+          if (map.getZoom() > 13) {
+            map.setZoom(13); // Restrict max zoom on fitBounds
+          }
+        });
       }
     }
   };
@@ -38,7 +46,7 @@ export default function DailyMapView({ activities, currency, destination }) {
 
     const geocoder = new window.google.maps.Geocoder();
 
-    geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
+        geocoder.geocode({ address: destination || 'World' }, (destResults, destStatus) => {
       let defaultCenter = { lat: 41.9028, lng: 12.4964 };
 
       if (destStatus === 'OK' && destResults[0]) {
@@ -47,7 +55,7 @@ export default function DailyMapView({ activities, currency, destination }) {
 
       if (!mapInstanceRef.current && mapRef.current) {
         mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-          zoom: 14,
+          zoom: 12, // Zoomed out from 14
           center: defaultCenter,
           styles: [
             { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }

@@ -2,10 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download } from 'lucide-react';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 
-const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
+const DEFAULT_CATEGORIES = [
+  { name: 'Accommodation 🏨', color: 'rose' },
+  { name: 'Tour', color: 'purple' },
+  { name: 'Meal', color: 'amber' },
+  { name: 'Museum', color: 'emerald' },
+  { name: 'Transport', color: 'blue' },
+  { name: 'Other', color: 'slate' }
+];
 
 export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
@@ -25,12 +32,18 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Booking');
 
-  // Universal Categories State
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [newCatName, setNewCatName] = useState('');
-  const [selectedTripData, setSelectedTripData] = useState(null);
-  const [selectedItineraryItems, setSelectedItineraryItems] = useState([]);
-  const [exportingPdf, setExportingPdf] = useState(false);
+    // Universal Categories State
+    const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+    const [newCatName, setNewCatName] = useState('');
+    const [newCatColor, setNewCatColor] = useState('blue');
+    const [selectedTripData, setSelectedTripData] = useState(null);
+    const [selectedItineraryItems, setSelectedItineraryItems] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    // Category inline editing states
+    const [editingCatName, setEditingCatName] = useState(null);
+    const [editCatInputName, setEditCatName] = useState('');
+    const [editCatInputColor, setEditCatColor] = useState('blue');
 
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -66,10 +79,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           setMembersMap(tripList[0].members);
         }
 
-        // Fetch Global Categories
+                // Fetch Global Categories
         const catSnap = await getDoc(doc(db, "settings", "global_categories"));
         if (catSnap.exists() && catSnap.data().list) {
-          setCategories(catSnap.data().list);
+          // Backward compatibility check if stored list has objects or strings
+          const loaded = catSnap.data().list.map(c => typeof c === 'string' ? { name: c, color: 'blue' } : c);
+          setCategories(loaded);
         } else {
           await setDoc(doc(db, "settings", "global_categories"), { list: DEFAULT_CATEGORIES });
         }
@@ -518,32 +533,63 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     }
   };
 
-  const handleAddCategory = async (e) => {
+    const handleAddCategory = async (e) => {
     e.preventDefault();
     const formatted = newCatName.trim();
-    if (!formatted || categories.includes(formatted)) return;
+    if (!formatted || categories.some(c => c.name === formatted)) return;
 
-    const updated = [...categories, formatted].sort((a, b) => a.localeCompare(b));
+    const updated = [...categories, { name: formatted, color: newCatColor }].sort((a, b) => a.name.localeCompare(b.name));
     try {
       await setDoc(doc(db, "settings", "global_categories"), { list: updated });
       setCategories(updated);
       setNewCatName('');
+      setNewCatColor('blue');
     } catch (err) {
       console.error("Error saving global category:", err);
     }
   };
 
-  const handleDeleteCategory = async (catToDelete) => {
+    const handleDeleteCategory = async (catToDelete) => {
     if (categories.length <= 1) {
       alert("You must keep at least one category.");
       return;
     }
-    const updated = categories.filter(c => c !== catToDelete);
+    const updated = categories.filter(c => c.name !== catToDelete);
     try {
       await setDoc(doc(db, "settings", "global_categories"), { list: updated });
       setCategories(updated);
     } catch (err) {
       console.error("Error deleting global category:", err);
+    }
+  };
+
+  const handleStartEditCategory = (cat) => {
+    setEditingCatName(cat.name);
+    setEditCatName(cat.name);
+    setEditCatColor(cat.color || 'blue');
+  };
+
+  const handleSaveEditCategory = async (oldName) => {
+    const trimmedNewName = editCatInputName.trim();
+    if (!trimmedNewName) return;
+    
+    // Check if new name already exists elsewhere
+    if (trimmedNewName !== oldName && categories.some(c => c.name === trimmedNewName)) {
+      alert("A category with this name already exists.");
+      return;
+    }
+
+    const updated = categories.map(c => 
+      c.name === oldName ? { name: trimmedNewName, color: editCatInputColor } : c
+    ).sort((a, b) => a.name.localeCompare(b.name));
+
+    try {
+      await setDoc(doc(db, "settings", "global_categories"), { list: updated });
+      setCategories(updated);
+      setEditingCatName(null);
+    } catch (err) {
+      console.error("Error updating global category:", err);
+      alert("Failed to save changes.");
     }
   };
 
@@ -558,6 +604,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       role: (role || 'guest').toLowerCase()
     };
   });
+
+  // Export list of category names (strings) for select components backwards compatibility
+  const categoryNames = categories.map(c => typeof c === 'string' ? c : c.name);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -795,7 +844,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
             </div>
           )}
 
-          {/* TAB 4: UNIVERSAL CATEGORIES */}
+                    {/* TAB 4: UNIVERSAL CATEGORIES */}
           {activeTab === 'categories' && (
             <div className="space-y-6">
               <div>
@@ -803,31 +852,163 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                 <p className="text-xs text-slate-500 mt-0.5">Categories added here instantly populate dropdowns across all trips.</p>
               </div>
 
-              <form onSubmit={handleAddCategory} className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="New Category (e.g. Adventure, Coffee)" 
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  required 
-                  className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" 
-                />
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                  <Plus className="w-3.5 h-3.5" /> Add Type
-                </button>
+              <form onSubmit={handleAddCategory} className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Category Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Adventure 🏔️, Coffee ☕" 
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      required 
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Color Theme</label>
+                                        <select
+                      value={newCatColor}
+                      onChange={(e) => setNewCatColor(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                    >
+                      <option value="rose">Rose</option>
+                      <option value="pink">Pink</option>
+                      <option value="fuchsia">Fuchsia</option>
+                      <option value="purple">Purple</option>
+                      <option value="violet">Violet</option>
+                      <option value="indigo">Indigo</option>
+                      <option value="blue">Blue</option>
+                      <option value="sky">Sky Blue</option>
+                      <option value="cyan">Cyan</option>
+                      <option value="teal">Teal</option>
+                      <option value="emerald">Emerald</option>
+                      <option value="green">Green</option>
+                      <option value="lime">Lime</option>
+                      <option value="yellow">Yellow</option>
+                      <option value="amber">Amber</option>
+                      <option value="orange">Orange</option>
+                      <option value="red">Red</option>
+                      <option value="stone">Stone</option>
+                      <option value="slate">Slate</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
+                    <Plus className="w-3.5 h-3.5" /> Add Type
+                  </button>
+                </div>
               </form>
 
-              <div className="space-y-2">
-                {categories.map(cat => (
-                  <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="font-bold text-slate-800 text-xs flex items-center gap-2">
-                      <Tag className="w-3.5 h-3.5 text-blue-600" /> {cat}
-                    </span>
-                    <button onClick={() => handleDeleteCategory(cat)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                            <div className="space-y-2">
+                {categories.map(cat => {
+                  const isEditingThisCat = editingCatName === cat.name;
+                  
+                  if (isEditingThisCat) {
+                    return (
+                      <div key={cat.name} className="p-3 bg-blue-50/50 rounded-xl border border-blue-200 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Edit Name</label>
+                            <input 
+                              type="text" 
+                              value={editCatInputName} 
+                              onChange={(e) => setEditCatName(e.target.value)} 
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Edit Theme</label>
+                                                        <select
+                              value={editCatInputColor}
+                              onChange={(e) => setEditCatColor(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs cursor-pointer focus:outline-none"
+                            >
+                              <option value="rose">Rose</option>
+                              <option value="pink">Pink</option>
+                              <option value="fuchsia">Fuchsia</option>
+                              <option value="purple">Purple</option>
+                              <option value="violet">Violet</option>
+                              <option value="indigo">Indigo</option>
+                              <option value="blue">Blue</option>
+                              <option value="sky">Sky Blue</option>
+                              <option value="cyan">Cyan</option>
+                              <option value="teal">Teal</option>
+                              <option value="emerald">Emerald</option>
+                              <option value="green">Green</option>
+                              <option value="lime">Lime</option>
+                              <option value="yellow">Yellow</option>
+                              <option value="amber">Amber</option>
+                              <option value="orange">Orange</option>
+                              <option value="red">Red</option>
+                              <option value="stone">Stone</option>
+                              <option value="slate">Slate</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button 
+                            type="button" 
+                            onClick={() => setEditingCatName(null)} 
+                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => handleSaveEditCategory(cat.name)} 
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded-lg text-[11px] cursor-pointer"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={cat.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                            <span className="font-bold text-slate-800 text-xs flex items-center gap-2">
+                        <Tag className={`w-3.5 h-3.5 ${
+                          cat.color === 'rose' ? 'text-rose-600' :
+                          cat.color === 'pink' ? 'text-pink-600' :
+                          cat.color === 'fuchsia' ? 'text-fuchsia-600' :
+                          cat.color === 'purple' ? 'text-purple-600' :
+                          cat.color === 'violet' ? 'text-violet-600' :
+                          cat.color === 'indigo' ? 'text-indigo-600' :
+                          cat.color === 'blue' ? 'text-blue-600' :
+                          cat.color === 'sky' ? 'text-sky-600' :
+                          cat.color === 'cyan' ? 'text-cyan-600' :
+                          cat.color === 'teal' ? 'text-teal-600' :
+                          cat.color === 'emerald' ? 'text-emerald-600' :
+                          cat.color === 'green' ? 'text-green-600' :
+                          cat.color === 'lime' ? 'text-lime-600' :
+                          cat.color === 'yellow' ? 'text-yellow-600' :
+                          cat.color === 'amber' ? 'text-amber-600' :
+                          cat.color === 'orange' ? 'text-orange-600' :
+                          cat.color === 'red' ? 'text-red-600' :
+                          cat.color === 'stone' ? 'text-stone-600' :
+                          'text-slate-500'
+                        }`} /> 
+                        {cat.name} 
+                        <span className="text-[10px] font-normal text-slate-400 capitalize">({cat.color})</span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleStartEditCategory(cat)} 
+                          className="p-1.5 text-slate-400 hover:text-blue-600 transition cursor-pointer" 
+                          title="Edit Category Name & Color"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDeleteCategory(cat.name)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

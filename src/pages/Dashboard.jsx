@@ -1,7 +1,7 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, orderBy, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 
 function getNextDay(dateStr) {
@@ -27,9 +27,9 @@ function getSeasonalTheme(startDateStr) {
   }
   if (month >= 5 && month <= 7) {
     return {
-      bg: 'bg-gradient-to-br from-amber-50/40 via-white to-white',
-      border: 'border-amber-200/60',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200'
+      bg: 'bg-gradient-to-br from-rose-50/40 via-white to-white',
+      border: 'border-rose-200/60',
+      badge: 'bg-rose-50 text-rose-700 border-rose-200'
     };
   }
   if (month >= 8 && month <= 10) {
@@ -106,7 +106,7 @@ useEffect(() => {
         
         const authorizedTrips = [];
 
-        for (const docSnap of snap.docs) {
+                for (const docSnap of snap.docs) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
@@ -125,10 +125,31 @@ useEffect(() => {
 
           // If the user is in the members map OR if they created it (fallback), show the trip
           if (memberRole || tripData.createdBy === user.uid) {
+            // Determine dynamic status based on dates
+            const todayStr = new Date().toISOString().split('T')[0];
+            let dynamicStatus = tripData.status || 'Planning';
+            
+            // Check if end date passed
+            if (tripData.endDate && tripData.endDate < todayStr) {
+              dynamicStatus = 'Completed';
+            } else if (tripData.startDate && tripData.startDate <= todayStr) {
+              dynamicStatus = 'In Progress';
+            }
+
+            // Sync with Firestore if the dynamic status has changed and user is Owner to avoid excessive write loops
+            if (dynamicStatus !== tripData.status && (resolvedRole === 'OWNER' || tripData.createdBy === user.uid)) {
+              try {
+                const tripRef = doc(db, "trips", tripId);
+                await updateDoc(tripRef, { status: dynamicStatus });
+              } catch (updateErr) {
+                console.error("Error auto-updating trip status:", updateErr);
+              }
+            }
+
             authorizedTrips.push({
               id: tripId,
               ...tripData,
-              status: tripData.status || 'Planning',
+              status: dynamicStatus,
               userRole: resolvedRole
             });
           }

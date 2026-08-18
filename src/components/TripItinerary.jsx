@@ -12,6 +12,12 @@ import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
+function isAccommodation(cat) {
+  if (!cat) return false;
+  const normalized = String(cat).trim().toLowerCase();
+  return normalized.includes('accommodation');
+}
+
 function normalizeDate(dateInput) {
   if (!dateInput) return null;
   if (typeof dateInput.toDate === 'function') dateInput = dateInput.toDate();
@@ -46,7 +52,8 @@ function getTripDateRange(startDateStr, endDateStr) {
 
 export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest', tripDestination }) {
   const [itineraryItems, setItineraryItems] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState([]);
+  const [categoriesWithColors, setCategoriesWithColors] = useState([]);
   
   // Creation Form States & Collapse Toggle
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
@@ -54,9 +61,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [selectedHour, setSelectedHour] = useState('09');
   const [selectedMinute, setSelectedMinute] = useState('00');
   const [isFlexibleTime, setIsFlexibleTime] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('');
+    const [selectedDate, setSelectedDate] = useState('');
   const [endDate, setEndDate] = useState(''); 
-  const [category, setCategory] = useState('Tour');
+  const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [cost, setCost] = useState('');
@@ -96,7 +103,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  useEffect(() => {
+    useEffect(() => {
     async function fetchData() {
       if (!tripId) return;
       try {
@@ -104,11 +111,31 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         const snap = await getDocs(q);
         setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-        // Fetch universal global categories
-        const settingsSnap = await getDoc(doc(db, "settings", "global_categories"));
-        if (settingsSnap.exists() && settingsSnap.data().list) {
-          setCategories(settingsSnap.data().list);
-        }
+                // Fetch universal global categories
+                const settingsSnap = await getDoc(doc(db, "settings", "global_categories"));
+                if (settingsSnap.exists() && settingsSnap.data().list) {
+                  const fetchedCats = settingsSnap.data().list;
+                  // Store raw rich list for colors
+                  const normalizedRichList = fetchedCats.map(c => typeof c === 'string' ? { name: c, color: 'blue' } : c);
+                  setCategoriesWithColors(normalizedRichList);
+
+                  // Normalize to strings for select options
+                  const catNames = normalizedRichList.map(c => c.name);
+                  setCategories(catNames);
+                  // Set initial default category to the first sorted category
+                  if (catNames.length > 0) {
+                    const sorted = [...catNames].sort((a, b) => a.localeCompare(b));
+                    setCategory(sorted[0]);
+                  }
+                } else {
+                  // Fallback if global settings don't exist yet
+                  const catNames = DEFAULT_CATEGORIES;
+                  setCategories(catNames);
+                  const defaultRich = DEFAULT_CATEGORIES.map(c => ({ name: c, color: 'blue' }));
+                  setCategoriesWithColors(defaultRich);
+                  const sorted = [...catNames].sort((a, b) => a.localeCompare(b));
+                  setCategory(sorted[0]);
+                }
       } catch (err) {
         console.error("Error fetching itinerary:", err);
       }
@@ -173,12 +200,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (!title.trim() || !location.trim()) return;
 
     setLoading(true);
-    try {
+        try {
       const newItem = {
         title,
         time: isFlexibleTime ? 'Flexible' : `${selectedHour}:${selectedMinute}`,
         date: selectedDate ? selectedDate : null,
-        endDate: category === 'Accommodation' && endDate ? endDate : (category === 'Accommodation' ? selectedDate : null),
+        endDate: isAccommodation(category) && endDate ? endDate : (isAccommodation(category) ? selectedDate : null),
         category,
         location: location.trim(),
         details: details.trim(),
@@ -189,6 +216,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       };
       const docRef = await addDoc(collection(db, "trips", tripId, "itinerary"), newItem);
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
+            // Reset form fields
       setTitle('');
       setLocation('');
       setDetails('');
@@ -199,6 +227,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setIsFlexibleTime(false);
       setSelectedHour('09');
       setSelectedMinute('00');
+      // Reset category to first item in sorted list
+      if (sortedCategories.length > 0) {
+        setCategory(sortedCategories[0]);
+      }
     } catch (err) {
       console.error("Error adding item:", err);
       alert("Failed to save activity. Check console for details.");
@@ -247,10 +279,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (isGuest) return;
     if (!editTitle.trim()) return;
 
-    const updatedFields = {
+        const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
-      endDate: editCategory === 'Accommodation' && editEndDate ? editEndDate : (editCategory === 'Accommodation' ? editDate : null),
+      endDate: isAccommodation(editCategory) && editEndDate ? editEndDate : (isAccommodation(editCategory) ? editDate : null),
       time: editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`,
       category: editCategory,
       location: editLocation.trim(),
@@ -289,13 +321,33 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     }
   };
 
-  const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
-  const sortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
+    const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
+  const rawSortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
   
-  const unscheduledItems = itineraryItems.filter(i => !i.date || !sortedDates.includes(i.date));
+  // Sort dates conditionally: Today first, future next, past at the very end
+  const todayStr = new Date().toISOString().split('T')[0];
+  const sortedDates = [...rawSortedDates].sort((a, b) => {
+    // If start date is today or trip status is In Progress, customize ordering
+    const aIsToday = a === todayStr;
+    const bIsToday = b === todayStr;
+
+    if (aIsToday && !bIsToday) return -1;
+    if (bIsToday && !aIsToday) return 1;
+
+    const aIsPast = a < todayStr;
+    const bIsPast = b < todayStr;
+
+    if (aIsPast && !bIsPast) return 1; // Move past days to the end
+    if (bIsPast && !aIsPast) return -1;
+
+    // Otherwise, order chronologically
+    return a.localeCompare(b);
+  });
+  
+    const unscheduledItems = itineraryItems.filter(i => !i.date || !rawSortedDates.includes(i.date));
   
   const groupedItems = itineraryItems.reduce((groups, item) => {
-    if (item.date && sortedDates.includes(item.date) && item.category !== 'Accommodation') {
+    if (item.date && rawSortedDates.includes(item.date) && !isAccommodation(item.category)) {
       if (!groups[item.date]) groups[item.date] = [];
       groups[item.date].push(item);
     }
@@ -337,7 +389,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         </div>
       </div>
 
-      {!isGuest && isAddFormOpen && (
+            {!isGuest && isAddFormOpen && (
         <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-fadeIn space-y-4">
           <ItineraryForm 
             title={title} setTitle={setTitle}
@@ -355,7 +407,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             loading={loading} dropdownRef={dropdownRef}
             onAddItem={handleAddItem}
           />
-          {category === 'Accommodation' && (
+          {isAccommodation(category) && (
             <div className="pt-2 border-t border-slate-200">
               <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Check-out Date (Optional Multi-day stay)</label>
               <input 
@@ -391,7 +443,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
               </div>
             </div>
 
-            {isUnscheduledOpen && (
+                        {isUnscheduledOpen && (
               <div className="p-4">
                 <Droppable droppableId="unscheduled" isDropDisabled={isGuest}>
                   {(provided, snapshot) => (
@@ -406,7 +458,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                         </div>
                       ) : (
                         unscheduledItems.map((item, index) => {
-                          if (item.category === 'Accommodation') {
+                          if (isAccommodation(item.category)) {
                             const isEditingThisHotel = editingCardId === item.id;
                             if (isEditingThisHotel) {
                               return (
@@ -504,7 +556,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               onSaveEdit={(paidFlag) => handleSaveEdit(item.id, paidFlag)}
                               onCancelEdit={() => { setEditingCardId(null); setEditPaidInAdvance(false); }}
                               onDelete={(e) => handleDeleteItem(item.id, e)}
-                              onToggleHighlight={async (itemId, newHighlightState) => {
+                                                            onToggleHighlight={async (itemId, newHighlightState) => {
                                 try {
                                   await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
                                   setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
@@ -524,6 +576,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               editLocation={editLocation} setEditLocation={setEditLocation}
                               editDetails={editDetails} setEditDetails={setEditDetails}
                               isGuest={isGuest}
+                              categoriesWithColors={categoriesWithColors}
                             />
                           );
                         })
@@ -536,12 +589,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             )}
           </div>
 
-          {/* 📅 DAILY ITINERARY FEED */}
+                    {/* 📅 DAILY ITINERARY FEED */}
           {sortedDates.map(dateStr => {
             const items = groupedItems[dateStr] || [];
             
             const activeAccommodations = itineraryItems.filter(i => 
-              i.category === 'Accommodation' && 
+              isAccommodation(i.category) && 
               i.date && 
               i.date <= dateStr && 
               (i.endDate >= dateStr || !i.endDate)
@@ -571,7 +624,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                 {!isDayCollapsed && (
                   <div className="p-4 space-y-4">
                     
-                    {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
+                                        {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
                     {activeAccommodations.length > 0 && (
                       <div className="space-y-2">
                         {activeAccommodations.map(acc => {
@@ -579,23 +632,123 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           const isCheckOut = acc.endDate === dateStr;
                           const badgeLabel = isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : 'Accommodation');
                           const isEditingThisHotel = editingCardId === acc.id;
+
+                          // Find dynamic category color chosen in configuration
+                          const matchedCat = categoriesWithColors.find(c => c.name === acc.category);
+                          const dynamicColor = matchedCat ? matchedCat.color : 'amber'; // Fallback to amber if not found
+
+                          // Class maps for dynamically configuring card elements based on custom category color
+                          const COLOR_BG_BORDER_MAP = {
+                            rose: 'bg-white border border-rose-200',
+                            pink: 'bg-white border border-pink-200',
+                            fuchsia: 'bg-white border border-fuchsia-200',
+                            purple: 'bg-white border border-purple-200',
+                            violet: 'bg-white border border-violet-200',
+                            indigo: 'bg-white border border-indigo-200',
+                            blue: 'bg-white border border-blue-200',
+                            sky: 'bg-white border border-sky-200',
+                            cyan: 'bg-white border border-cyan-200',
+                            teal: 'bg-white border border-teal-200',
+                            emerald: 'bg-white border border-emerald-200',
+                            green: 'bg-white border border-green-200',
+                            lime: 'bg-white border border-lime-200',
+                            yellow: 'bg-white border border-yellow-200',
+                            amber: 'bg-white border border-amber-200',
+                            orange: 'bg-white border border-orange-200',
+                            red: 'bg-white border border-red-200',
+                            stone: 'bg-white border border-stone-200',
+                            slate: 'bg-white border border-slate-200'
+                          };
+
+                          const COLOR_BADGE_MAP = {
+                            rose: 'bg-rose-50 text-rose-700',
+                            pink: 'bg-pink-50 text-pink-700',
+                            fuchsia: 'bg-fuchsia-50 text-fuchsia-700',
+                            purple: 'bg-purple-50 text-purple-700',
+                            violet: 'bg-violet-50 text-violet-700',
+                            indigo: 'bg-indigo-50 text-indigo-700',
+                            blue: 'bg-blue-50 text-blue-700',
+                            sky: 'bg-sky-50 text-sky-700',
+                            cyan: 'bg-cyan-50 text-cyan-700',
+                            teal: 'bg-teal-50 text-teal-700',
+                            emerald: 'bg-emerald-50 text-emerald-700',
+                            green: 'bg-green-50 text-green-700',
+                            lime: 'bg-lime-50 text-lime-700',
+                            yellow: 'bg-yellow-50 text-yellow-700',
+                            amber: 'bg-amber-50 text-amber-700',
+                            orange: 'bg-orange-50 text-orange-700',
+                            red: 'bg-red-50 text-red-700',
+                            stone: 'bg-stone-50 text-stone-700',
+                            slate: 'bg-slate-100 text-slate-700'
+                          };
+
+                          const COLOR_ICON_MAP = {
+                            rose: 'bg-rose-50 text-rose-600',
+                            pink: 'bg-pink-50 text-pink-600',
+                            fuchsia: 'bg-fuchsia-50 text-fuchsia-600',
+                            purple: 'bg-purple-50 text-purple-600',
+                            violet: 'bg-violet-50 text-violet-600',
+                            indigo: 'bg-indigo-50 text-indigo-600',
+                            blue: 'bg-blue-50 text-blue-600',
+                            sky: 'bg-sky-50 text-sky-600',
+                            cyan: 'bg-cyan-50 text-cyan-600',
+                            teal: 'bg-teal-50 text-teal-600',
+                            emerald: 'bg-emerald-50 text-emerald-600',
+                            green: 'bg-green-50 text-green-600',
+                            lime: 'bg-lime-50 text-lime-600',
+                            yellow: 'bg-yellow-50 text-yellow-600',
+                            amber: 'bg-amber-50 text-amber-600',
+                            orange: 'bg-orange-50 text-orange-600',
+                            red: 'bg-red-50 text-red-600',
+                            stone: 'bg-stone-50 text-stone-600',
+                            slate: 'bg-slate-100 text-slate-500'
+                          };
+
+                          const COLOR_TEXT_MAP = {
+                            rose: 'text-rose-700',
+                            pink: 'text-pink-700',
+                            fuchsia: 'text-fuchsia-700',
+                            purple: 'text-purple-700',
+                            violet: 'text-violet-700',
+                            indigo: 'text-indigo-700',
+                            blue: 'text-blue-700',
+                            sky: 'text-sky-700',
+                            cyan: 'text-cyan-700',
+                            teal: 'text-teal-700',
+                            emerald: 'text-emerald-700',
+                            green: 'text-green-700',
+                            lime: 'text-lime-700',
+                            yellow: 'text-yellow-700',
+                            amber: 'text-amber-700',
+                            orange: 'text-orange-700',
+                            red: 'text-red-700',
+                            stone: 'text-stone-700',
+                            slate: 'text-slate-700'
+                          };
+
                           const cardBgClass = isCheckIn
                             ? 'bg-white border border-emerald-200'
                             : isCheckOut
                               ? 'bg-white border border-orange-200'
-                              : 'bg-white border border-amber-200';
+                              : (COLOR_BG_BORDER_MAP[dynamicColor] || COLOR_BG_BORDER_MAP.slate);
+
                           const badgeColorClass = isCheckIn
                             ? 'bg-emerald-50 text-emerald-700'
                             : isCheckOut
                               ? 'bg-orange-50 text-orange-700'
-                              : 'bg-amber-50 text-amber-700';
+                              : (COLOR_BADGE_MAP[dynamicColor] || COLOR_BADGE_MAP.slate);
+
                           const iconColorClass = isCheckIn
                             ? 'bg-emerald-50 text-emerald-600'
                             : isCheckOut
                               ? 'bg-orange-50 text-orange-600'
-                              : 'bg-amber-50 text-amber-600';
-                          const textColorClass = isCheckIn ? 'text-emerald-700' : isCheckOut ? 'text-orange-700' : 'text-amber-700';
-                          const costColorClass = isCheckIn ? 'text-emerald-700' : isCheckOut ? 'text-orange-700' : 'text-amber-700';
+                              : (COLOR_ICON_MAP[dynamicColor] || COLOR_ICON_MAP.slate);
+
+                          const costColorClass = isCheckIn 
+                            ? 'text-emerald-700' 
+                            : isCheckOut 
+                              ? 'text-orange-700' 
+                              : (COLOR_TEXT_MAP[dynamicColor] || COLOR_TEXT_MAP.slate);
 
                           if (isEditingThisHotel) {
                             return (
@@ -737,7 +890,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                 editLocation={editLocation} setEditLocation={setEditLocation}
                                 editDetails={editDetails} setEditDetails={setEditDetails}
                                 isGuest={isGuest}
-                              />
+                                categoriesWithColors={categoriesWithColors}
+                            />
                             ))
                           )}
                           {provided.placeholder}

@@ -4,15 +4,26 @@ import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLi
 import { Draggable } from '@hello-pangea/dnd';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 
-const CATEGORY_COLORS = {
-  Tour: 'bg-purple-50 text-purple-700 border-purple-100',
-  Meal: 'bg-amber-50 text-amber-700 border-amber-100',
-  Museum: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  Transport: 'bg-blue-50 text-blue-700 border-blue-100',
-  Accommodation: 'bg-rose-50 text-rose-700 border-rose-100',
-  Flight: 'bg-sky-50 text-sky-700 border-sky-100',
-  Hiking: 'bg-green-50 text-green-700 border-green-100',
-  Other: 'bg-slate-100 text-slate-700 border-slate-200'
+const COLOR_MAP = {
+  rose: 'bg-rose-50 text-rose-700 border-rose-100',
+  pink: 'bg-pink-50 text-pink-700 border-pink-100',
+  fuchsia: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100',
+  purple: 'bg-purple-50 text-purple-700 border-purple-100',
+  violet: 'bg-violet-50 text-violet-700 border-violet-100',
+  indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  blue: 'bg-blue-50 text-blue-700 border-blue-100',
+  sky: 'bg-sky-50 text-sky-700 border-sky-100',
+  cyan: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+  teal: 'bg-teal-50 text-teal-700 border-teal-100',
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  green: 'bg-green-50 text-green-700 border-green-100',
+  lime: 'bg-lime-50 text-lime-700 border-lime-100',
+  yellow: 'bg-yellow-50 text-yellow-700 border-yellow-100',
+  amber: 'bg-amber-50 text-amber-700 border-amber-100',
+  orange: 'bg-orange-50 text-orange-700 border-orange-100',
+  red: 'bg-red-50 text-red-700 border-red-100',
+  stone: 'bg-stone-50 text-stone-700 border-stone-100',
+  slate: 'bg-slate-100 text-slate-700 border-slate-200'
 };
 
 export default function ItineraryCard({
@@ -28,9 +39,14 @@ export default function ItineraryCard({
   editCost, setEditCost,
   editLocation, setEditLocation,
   editDetails, setEditDetails,
-  isGuest
+  isGuest,
+  categoriesWithColors = []
 }) {
-  const badgeClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+  // Dynamically find color chosen from the global configuration
+  const matchingCat = categoriesWithColors.find(c => c.name === item.category);
+  const badgeColorKey = matchingCat ? matchingCat.color : 'slate';
+  const badgeClass = COLOR_MAP[badgeColorKey] || COLOR_MAP.slate;
+
   const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
 
   const currencySymbol = getCurrencySymbol(currency);
