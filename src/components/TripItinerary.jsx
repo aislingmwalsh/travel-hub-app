@@ -70,13 +70,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [paidInAdvance, setPaidInAdvance] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Collapsed Days & Unscheduled Pool Toggles
-  const [collapsedDays, setCollapsedDays] = useState({});
+    // Unscheduled Pool Toggles
   const [isUnscheduledOpen, setIsUnscheduledOpen] = useState(true);
-
-  const toggleDayCollapse = (dateStr) => {
-    setCollapsedDays(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
-  };
 
   const safeRole = typeof userRole === 'object' ? userRole?.role : userRole;
   const isGuest = String(safeRole || '').toLowerCase() === 'guest';
@@ -600,16 +595,14 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
               (i.endDate >= dateStr || !i.endDate)
             );
 
-            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+                        const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
-            const isDayCollapsed = collapsedDays[dateStr];
 
             return (
               <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
                 <div 
-                  onClick={() => toggleDayCollapse(dateStr)}
-                  className="bg-slate-100 hover:bg-slate-200/60 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between cursor-pointer transition"
+                  className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between transition"
                 >
                   <div className="flex items-center gap-2.5">
                     <Calendar className="w-4 h-4 text-blue-600" />
@@ -621,8 +614,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   </div>
                 </div>
 
-                {!isDayCollapsed && (
-                  <div className="p-4 space-y-4">
+                <div className="p-4 space-y-4">
                     
                                         {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
                     {activeAccommodations.length > 0 && (
@@ -899,7 +891,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       )}
                     </Droppable>
 
-                    {(() => {
+                                        {(() => {
                       const mapActivities = [...activeAccommodations, ...items].filter(a => a.location);
                       return mapActivities.length > 0 ? (
                         <DailyMapView 
@@ -910,8 +902,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                       ) : null;
                     })()}
                   </div>
-                )}
-              </div>
+                </div>
             );
           })}
         </div>

@@ -5,10 +5,9 @@ import { getCurrencySymbol } from '../utils/currencyUtils';
 
 export default function DailyMapView({ activities, currency, destination }) {
   const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
+  const [mapInstance, setMapInstance] = useState(null);
   const markersRef = useRef([]);
   const geocodeCacheRef = useRef(new Map());
-  const [isMapOpen, setIsMapOpen] = useState(true);
 
   const forceMapRefresh = (map, centerOverride = null) => {
     if (!map || !window.google?.maps) return;
@@ -40,7 +39,7 @@ export default function DailyMapView({ activities, currency, destination }) {
     }
   };
 
-  // Initialize map once on mount
+    // Initialize map once on mount
   useEffect(() => {
     if (!window.google?.maps || !mapRef.current) return;
 
@@ -53,38 +52,38 @@ export default function DailyMapView({ activities, currency, destination }) {
         defaultCenter = destResults[0].geometry.location;
       }
 
-      if (!mapInstanceRef.current && mapRef.current) {
-        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+      if (!mapInstance && mapRef.current) {
+        const map = new window.google.maps.Map(mapRef.current, {
           zoom: 12, // Zoomed out from 14
           center: defaultCenter,
           styles: [
             { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
           ]
         });
+        setMapInstance(map);
 
         requestAnimationFrame(() => {
-          setTimeout(() => forceMapRefresh(mapInstanceRef.current), 80);
+          setTimeout(() => forceMapRefresh(map), 80);
         });
       }
     });
   }, [destination]);
 
   useEffect(() => {
-    if (!isMapOpen || !mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapInstance || !window.google?.maps) return;
 
-    const map = mapInstanceRef.current;
     const timer = setTimeout(() => {
-      forceMapRefresh(map);
+      forceMapRefresh(mapInstance);
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [isMapOpen, activities]);
+  }, [mapInstance, activities]);
 
-  // Update markers and bounds whenever activities change or map is toggled open
+  // Update markers and bounds whenever activities change
   useEffect(() => {
-    if (!isMapOpen || !mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapInstance || !window.google?.maps) return;
 
-    const map = mapInstanceRef.current;
+    const map = mapInstance;
     const validActivities = activities.filter((act) => {
       const location = String(act.location || '').trim();
       return location && location.length > 2 && !/^https?:\/\//i.test(location) && location !== 'N/A';
@@ -113,7 +112,8 @@ export default function DailyMapView({ activities, currency, destination }) {
       });
     };
 
-    const renderMarkers = async () => {
+        const renderMarkers = async () => {
+      // Clear old markers first
       markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
 
@@ -123,6 +123,8 @@ export default function DailyMapView({ activities, currency, destination }) {
 
       const positions = resolvedLocations.filter(Boolean);
       if (!positions.length) return;
+
+      const newMarkers = [];
 
       validActivities.forEach((activity, index) => {
         const resolvedPosition = resolvedLocations[index];
@@ -139,13 +141,13 @@ export default function DailyMapView({ activities, currency, destination }) {
           title: activity.title
         });
 
-const currencySymbol = getCurrencySymbol(currency);
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div style="font-family: sans-serif; padding: 6px;">
-                <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
-                <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
-                ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currencySymbol} ${Number(activity.cost).toFixed(2)}</p>` : ''}
+        const currencySymbol = getCurrencySymbol(currency);
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="font-family: sans-serif; padding: 6px;">
+              <h4 style="font-weight: bold; margin: 0 0 4px 0; font-size: 13px;">${activity.title}</h4>
+              <p style="margin: 0; font-size: 11px; color: #555;">🕒 ${activity.time} | 📍 ${activity.location}</p>
+              ${activity.cost ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #059669; font-weight: bold;">Cost: ${currencySymbol} ${Number(activity.cost).toFixed(2)}</p>` : ''}
             </div>
           `
         });
@@ -154,35 +156,32 @@ const currencySymbol = getCurrencySymbol(currency);
           infoWindow.open(map, marker);
         });
 
-        markersRef.current.push(marker);
+        newMarkers.push(marker);
       });
+
+      markersRef.current = newMarkers;
 
       requestAnimationFrame(() => {
         setTimeout(() => forceMapRefresh(map), 100);
       });
     };
 
-    renderMarkers();
-  }, [activities, currency, isMapOpen]);
+        renderMarkers();
+  }, [mapInstance, activities, currency]);
 
-  if (!activities || activities.filter(a => a.location).length === 0) {
+        if (!activities || activities.filter(a => a.location).length === 0) {
     return null;
   }
 
   return (
     <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-sm mt-3">
-      <button 
-        onClick={() => setIsMapOpen(!isMapOpen)}
-        className="w-full bg-slate-50 hover:bg-slate-100 px-4 py-3 flex items-center justify-between text-xs font-bold text-slate-700 transition cursor-pointer"
-      >
+      <div className="w-full bg-slate-50 px-4 py-3 flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-200">
         <span className="flex items-center gap-1.5 uppercase tracking-wider">
           <MapPin className="w-4 h-4 text-teal-500" /> Daily Route Map ({activities.filter(a => a.location).length} locations)
         </span>
-        {isMapOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-      </button>
+      </div>
 
-      {/* Map container stays mounted in DOM with CSS display toggling to prevent initialization loss */}
-      <div className={`p-3 bg-white ${isMapOpen ? 'block' : 'hidden'}`}>
+      <div className="p-3 bg-white">
         <div ref={mapRef} className="w-full h-64 rounded-xl border border-slate-200 overflow-hidden" />
       </div>
     </div>
