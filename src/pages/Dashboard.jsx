@@ -258,7 +258,7 @@ useEffect(() => {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Your Trips Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-900">My Trips Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">Select a trip to view and manage its itinerary.</p>
         </div>
 
@@ -338,19 +338,17 @@ useEffect(() => {
                 </div>
 
                 <div className="p-4 space-y-4 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full ${theme.badge}`}>
+                  <div className="grid grid-cols-3 items-center gap-1.5 sm:flex sm:flex-nowrap sm:justify-between sm:gap-2">
+                      <span className={`w-full text-center whitespace-nowrap text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] px-2 sm:px-2.5 py-1 rounded-full ${theme.badge}`}>
                         {trip.userRole}
                       </span>
                       {trip.status && (
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full border border-slate-200 bg-slate-100 text-slate-700">
+                        <span className="w-full text-center whitespace-nowrap text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] px-2 sm:px-2.5 py-1 rounded-full border border-slate-200 bg-slate-100 text-slate-700">
                           {trip.status}
                         </span>
                       )}
-                    </div>
 
-                    <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-3 py-1 transition hover:bg-blue-200 hover:text-blue-900">
+                    <span className="w-full justify-center whitespace-nowrap flex items-center gap-1 text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-2 sm:px-3 py-1 transition hover:bg-blue-200 hover:text-blue-900">
                       <span>View itinerary</span>
                       <ArrowRight className="w-3 h-3" />
                     </span>
