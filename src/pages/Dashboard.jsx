@@ -255,17 +255,17 @@ useEffect(() => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Your Trips Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">Select a trip to view and manage its itinerary.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row w-full md:w-auto items-stretch sm:items-center gap-3">
           {/* Status Filter Bar */}
-          <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-            <Filter className="w-3.5 h-3.5 text-slate-400 ml-2" />
+          <div className="flex items-center gap-1.5 overflow-x-auto bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Filter className="w-3.5 h-3.5 text-slate-400 ml-1 sm:ml-2 shrink-0" />
             <button 
               onClick={() => setStatusFilter('all')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-full transition cursor-pointer ${statusFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
@@ -295,7 +295,7 @@ useEffect(() => {
           {/* Create New Trip Button */}
           <button 
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-2xl transition cursor-pointer shadow-sm"
+            className="w-full sm:w-auto justify-center flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-3 sm:py-2.5 rounded-2xl transition cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" /> Create Trip
           </button>
@@ -365,7 +365,7 @@ useEffect(() => {
       {/* Create Trip Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 flex flex-col">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto border border-slate-200 flex flex-col">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-bold text-slate-900 text-lg">Create New Trip</h3>
               <button onClick={() => setIsCreateModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">

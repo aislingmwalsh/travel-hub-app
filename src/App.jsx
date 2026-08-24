@@ -55,17 +55,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sticky top-0 z-40 shadow-sm">
         <h1 
           onClick={() => setSelectedTripId(null)} 
-          className="font-bold text-slate-900 text-lg cursor-pointer hover:text-blue-600 transition"
+          className="min-w-0 font-bold text-slate-900 text-sm sm:text-lg leading-tight cursor-pointer hover:text-blue-600 transition"
         >
           Away from Home: Your Travel Planner ✈️ 🌍
         </h1>
         
         <button 
           onClick={() => setIsGlobalAdminOpen(true)}
-          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+          aria-label="Open settings and vault"
+          className="shrink-0 flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 sm:px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm"
         >
           <Settings className="w-4 h-4 text-blue-600" /> Settings & Vault
         </button>

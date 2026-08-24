@@ -61,7 +61,7 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-8 relative shadow-2xl">
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:p-8 relative shadow-2xl">
         <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition bg-slate-50 hover:bg-slate-100 p-2 rounded-full">
           <X className="w-4 h-4" />
         </button>
@@ -74,7 +74,7 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
 
         {/* Invite Form */}
         <form onSubmit={handleInvite} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6 space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-grow">
               <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
               <input 

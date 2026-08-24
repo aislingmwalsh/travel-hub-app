@@ -366,17 +366,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
   return (
-    <div className="mt-8 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+    <div className="mt-6 sm:mt-8 bg-white p-4 sm:p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h3 className="text-xl font-bold text-slate-900">Trip Itinerary</h3>
           <p className="text-xs text-slate-500 mt-0.5">Estimated Trip Budget: <span className="font-bold text-slate-800">{currencySymbol} {grandTotalCost.toFixed(2)}</span></p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full md:w-auto items-center gap-3">
           {!isGuest && (
             <button 
               onClick={() => setIsAddFormOpen(!isAddFormOpen)}
-              className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+              className="w-full md:w-auto justify-center flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 rounded-xl transition cursor-pointer shadow-sm"
             >
               <span>{isAddFormOpen ? 'Close Add Form' : 'Add Activity'}</span>
             </button>
@@ -425,11 +425,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
           <div className="border border-indigo-200 rounded-2xl overflow-hidden bg-indigo-50/20">
             <div 
               onClick={() => setIsUnscheduledOpen(!isUnscheduledOpen)}
-              className="bg-indigo-50 hover:bg-indigo-100/60 px-5 py-3.5 border-b border-indigo-100 flex items-center justify-between cursor-pointer transition"
+            className="bg-indigo-50 hover:bg-indigo-100/60 px-4 sm:px-5 py-3.5 border-b border-indigo-100 flex items-center justify-between gap-3 cursor-pointer transition"
             >
               <div className="flex items-center gap-2.5">
                 <Inbox className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-bold text-indigo-900 text-sm uppercase tracking-wider">Unscheduled Ideas Pool</h4>
+                <h4 className="font-bold text-indigo-900 text-xs sm:text-sm uppercase tracking-wider">Unscheduled Ideas Pool</h4>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200">
@@ -517,23 +517,33 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                             }
 
                                                         return (
-                              <div key={item.id} className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
-                                <div className="flex items-center gap-3">
+                              <div key={item.id} className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                                <div className="flex items-start md:items-center gap-3">
                                   <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0"><Building2 className="w-4 h-4" /></div>
-                                  <div>
+                                  <div className="min-w-0">
                                     <div className="flex items-center gap-2">
                                       <span className="font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px]">{item.category}</span>
                                       <h5 className="font-bold text-amber-950 text-sm">{item.title}</h5>
                                     </div>
-                                    {item.location && <p className="text-xs text-amber-800 mt-0.5">{item.location}</p>}
+                                    {item.cost > 0 && <span className="md:hidden inline-flex mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 bg-emerald-50">{currency} {Number(item.cost).toFixed(2)}</span>}
+                                    {item.location && <p className="text-xs text-amber-800 mt-1 break-words">{item.location}</p>}
+                                    {!isGuest && (
+                                      <div className="md:hidden flex items-center gap-1 mt-2">
+                                        <button onClick={(e) => handleStartEdit(item, e)} className="p-2 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
+                                        <button onClick={(e) => handleDeleteItem(item.id, e)} className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                                {!isGuest && (
-                                  <div className="flex items-center gap-2">
+                                <div className="hidden md:flex items-center gap-2">
+                                  {item.cost > 0 && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 bg-emerald-50">{currency} {Number(item.cost).toFixed(2)}</span>}
+                                  {!isGuest && (
+                                  <>
                                     <button onClick={(e) => handleStartEdit(item, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
                                     <button onClick={(e) => handleDeleteItem(item.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
-                                  </div>
-                                )}
+                                  </>
+                                  )}
+                                </div>
                               </div>
                             );
                           }
@@ -804,27 +814,36 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           }
 
                                                     return (
-                            <div key={acc.id} className={`${cardBgClass} p-3 rounded-2xl flex items-center justify-between shadow-sm`}>
-                              <div className="flex items-center gap-3">
+                            <div key={acc.id} className={`${cardBgClass} p-3 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm`}>
+                              <div className="flex items-start md:items-center gap-3">
                                 <div className={`${iconColorClass} p-2 rounded-xl shrink-0`}>
                                   <Building2 className="w-4 h-4" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`${badgeColorClass} font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-[10px]`}>
                                       {isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : acc.category)}
                                     </span>
                                     <h5 className="font-semibold text-slate-900 text-sm leading-tight">{acc.title}</h5>
                                   </div>
+                                  {acc.cost > 0 && (
+                                    <span className={`md:hidden ${costColorClass} text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 mt-2 rounded-full border border-current/20 inline-flex items-center`}>{currency} {Number(acc.cost).toFixed(2)}</span>
+                                  )}
                                   {acc.location && (
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                                       <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                                      <span>{acc.location}</span>
+                                      <span className="break-words">{acc.location}</span>
+                                    </div>
+                                  )}
+                                  {!isGuest && (
+                                    <div className="md:hidden flex items-center gap-1 mt-2">
+                                      <button onClick={(e) => handleStartEdit(acc, e)} className="p-2 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
+                                      <button onClick={(e) => handleDeleteItem(acc.id, e)} className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
+                              <div className="hidden md:flex items-center gap-3">
                                 {acc.cost > 0 && (
                                   <span className={`${costColorClass} text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border border-current/20 inline-flex items-center`}>{currency} {Number(acc.cost).toFixed(2)}</span>
                                 )}

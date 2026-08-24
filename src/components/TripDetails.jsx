@@ -51,9 +51,9 @@ export default function TripDetails({ tripId, onBack }) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8">
-      <div className="mb-6">
-        <button onClick={onBack} className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
+      <div className="mb-4 sm:mb-6">
+        <button onClick={onBack} className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
       </div>

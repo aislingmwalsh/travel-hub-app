@@ -71,12 +71,12 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const isOwner = String(unwrappedRole || '').trim().toLowerCase() === 'owner';
 
   return (
-    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 mb-8">
+    <div className="bg-white p-5 sm:p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 mb-6 sm:mb-8">
       {!isEditing ? (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{tripData.title}</h1>
+            <div className="flex items-start sm:items-center gap-3 mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 break-words">{tripData.title}</h1>
               <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
                 tripData.status === 'Booked' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                 tripData.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
@@ -103,11 +103,11 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex w-full md:w-auto items-center gap-2 flex-wrap">
             {isOwner && (
               <button 
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition cursor-pointer"
+                className="w-full md:w-auto justify-center flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-3 md:py-2.5 rounded-xl transition cursor-pointer"
               >
                 <Edit3 className="w-4 h-4" /> Edit Trip Details
               </button>
@@ -181,7 +181,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer">
+            <button type="submit" className="w-full sm:w-auto justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer">
               <Save className="w-4 h-4" /> Save Changes
             </button>
           </div>

@@ -182,7 +182,7 @@ export default function DailyMapView({ activities, currency, destination }) {
       </div>
 
       <div className="p-3 bg-white">
-        <div ref={mapRef} className="w-full h-64 rounded-xl border border-slate-200 overflow-hidden" />
+        <div ref={mapRef} className="w-full h-56 sm:h-64 rounded-xl border border-slate-200 overflow-hidden" />
       </div>
     </div>
   );

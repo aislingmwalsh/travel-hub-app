@@ -166,7 +166,7 @@ export default function ItineraryForm({
         <button 
           type="submit" 
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          className="w-full sm:w-auto justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 sm:py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
         >
           <Plus className="w-3.5 h-3.5" /> {loading ? 'Saving...' : 'Save Activity'}
         </button>
