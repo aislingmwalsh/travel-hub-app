@@ -1,7 +1,7 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 
@@ -13,6 +13,12 @@ const DEFAULT_CATEGORIES = [
   { name: 'Transport', color: 'blue' },
   { name: 'Other', color: 'slate' }
 ];
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[character]));
+}
 
 export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
@@ -26,6 +32,8 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   // Invite Member Form
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('collaborator');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState('');
 
   // Vault Form States
   const [linkTitle, setLinkTitle] = useState('');
@@ -466,21 +474,56 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     if (!inviteEmail.trim() || !isOwner) return;
 
     const emailTrimmed = inviteEmail.trim().toLowerCase();
+    const existingMember = Object.values(membersMap).some((member) => {
+      const memberEmail = typeof member === 'object' ? member.email : '';
+      return String(memberEmail || '').toLowerCase() === emailTrimmed;
+    });
+
+    if (existingMember) {
+      setInviteNotice('That traveller already has access to this trip.');
+      return;
+    }
+
+    setSendingInvite(true);
+    setInviteNotice('');
     try {
-      const updatedMembers = {
-        ...membersMap,
-        [emailTrimmed]: { role: inviteRole, email: emailTrimmed }
-      };
+      const invitationRef = await addDoc(collection(db, 'trips', selectedTripId, 'invitations'), {
+        email: emailTrimmed,
+        role: inviteRole,
+        status: 'invited',
+        invitedBy: currentUser.uid,
+        inviterEmail: currentUser.email || '',
+        createdAt: serverTimestamp(),
+      });
 
-      const tripRef = doc(db, "trips", selectedTripId);
-      await updateDoc(tripRef, { members: updatedMembers });
+      const inviteUrl = new URL(window.location.origin);
+      inviteUrl.searchParams.set('trip', selectedTripId);
+      inviteUrl.searchParams.set('invite', invitationRef.id);
+      const tripTitle = selectedTripData?.title || 'a trip';
+      const destination = selectedTripData?.destination ? ` to ${selectedTripData.destination}` : '';
+      const inviterHtml = escapeHtml(currentUser.email || 'A Travel Hub member');
+      const titleHtml = escapeHtml(tripTitle);
+      const destinationHtml = escapeHtml(destination);
+      const roleHtml = escapeHtml(inviteRole);
+      const emailHtml = escapeHtml(emailTrimmed);
 
-      setMembersMap(updatedMembers);
-      setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+      // Firebase's Trigger Email extension sends queued documents in /mail.
+      await addDoc(collection(db, 'mail'), {
+        to: emailTrimmed,
+        message: {
+          subject: `You're invited to ${tripTitle}`,
+          text: `${currentUser.email || 'A Travel Hub member'} invited you to join ${tripTitle}${destination} as a ${inviteRole}. Open ${inviteUrl.toString()} to sign in and join the trip.`,
+          html: `<p>${inviterHtml} invited you to join <strong>${titleHtml}</strong>${destinationHtml} as a <strong>${roleHtml}</strong>.</p><p><a href="${inviteUrl.toString()}">Open trip invitation</a></p><p>Sign in with <strong>${emailHtml}</strong> to join.</p>`,
+        },
+      });
+
       setInviteEmail('');
-      alert("Collaborator added successfully!");
+      setInviteNotice(`Invitation queued for ${emailTrimmed}.`);
     } catch (err) {
       console.error("Error adding member:", err);
+      setInviteNotice('Could not queue the invitation. Please try again.');
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -679,7 +722,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
             <div className="space-y-6">
               {isOwner && (
                 <form onSubmit={handleAddMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Add Traveler</h4>
+                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Invite Traveler</h4>
                   <div className="flex gap-2">
                     <input 
                       type="email" 
@@ -698,10 +741,11 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                       <option value="collaborator">Collaborator</option>
                       <option value="guest">Guest</option>
                     </select>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer">
-                      <UserPlus className="w-3.5 h-3.5" /> Add
+                    <button type="submit" disabled={sendingInvite} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                      <UserPlus className="w-3.5 h-3.5" /> {sendingInvite ? 'Sending...' : 'Send invite'}
                     </button>
                   </div>
+                  {inviteNotice && <p className="text-xs text-slate-600">{inviteNotice}</p>}
                 </form>
               )}
 

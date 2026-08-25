@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import TripDetails from './components/TripDetails'; 
 import TripAdminModal from './components/TripAdminModal';
 import { Settings } from 'lucide-react';
+import { claimRememberedInvite, rememberInviteFromUrl } from './utils/invitations';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -15,6 +16,9 @@ export default function App() {
   const [isGlobalAdminOpen, setIsGlobalAdminOpen] = useState(false);
 
   useEffect(() => {
+    // Save the invitation before an email sign-in redirects back to the app.
+    rememberInviteFromUrl();
+
     const checkEmailLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
         let email = window.localStorage.getItem('emailForSignIn');
@@ -40,6 +44,25 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const acceptInvite = async () => {
+      try {
+        const result = await claimRememberedInvite(user);
+        if (result) {
+          setSelectedTripId(result.tripId);
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      } catch (error) {
+        console.error('Error accepting trip invitation:', error);
+        alert(error.message || 'Unable to accept this trip invitation.');
+      }
+    };
+
+    acceptInvite();
+  }, [user]);
 
   if (loading) {
     return (
