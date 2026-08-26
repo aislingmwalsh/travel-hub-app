@@ -73,42 +73,42 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const isOwner = String(unwrappedRole || '').trim().toLowerCase() === 'owner';
 
   return (
-    <div 
-      className="relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 mb-6 sm:mb-8 text-white min-h-[260px] md:min-h-[300px] flex items-end p-4 sm:p-6 bg-slate-900"
-    >
-      <div className="absolute inset-0 z-0">
+    <div className="space-y-6 mb-6 sm:mb-8">
+      {/* Cover Image Banner */}
+      <div className="relative h-48 sm:h-60 md:h-72 w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 bg-slate-100">
         <img 
           src={coverUrl} 
           alt={tripData.title} 
-          className="w-full h-full object-cover opacity-95"
+          className="w-full h-full object-cover"
           style={{ objectPosition: 'center 35%' }}
         />
       </div>
 
+      {/* Details Section */}
       {!isEditing ? (
-        <div className="relative z-20 w-full bg-slate-950/50 backdrop-blur-md border border-white/10 rounded-2xl p-5 sm:p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-lg">
-          <div className="space-y-3">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 px-1">
+          <div className="space-y-2.5">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white drop-shadow-sm">{tripData.title}</h1>
-              <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
-                tripData.status === 'Booked' ? 'bg-emerald-500/90 text-white border-emerald-400' :
-                tripData.status === 'In Progress' ? 'bg-blue-600/90 text-white border-blue-500' :
-                tripData.status === 'Completed' ? 'bg-slate-600/90 text-white border-slate-500' :
-                'bg-amber-500/90 text-white border-amber-400'
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900">{tripData.title}</h1>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                tripData.status === 'Booked' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                tripData.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                tripData.status === 'Completed' ? 'bg-slate-100 text-slate-700 border-slate-200' :
+                'bg-amber-50 text-amber-700 border-amber-200'
               }`}>
                 {tripData.status || 'Planning'}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-200 font-semibold drop-shadow-sm">
-              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-400" /> {tripData.destination}</span>
-              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-400" /> {tripData.startDate} to {tripData.endDate}</span>
-              <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-400" /> {tripData.currency || 'EUR'} ({currencySymbol})</span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-500 font-semibold">
+              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-600" /> {tripData.destination}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-600" /> {tripData.startDate} to {tripData.endDate}</span>
+              <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-600" /> {tripData.currency || 'EUR'} ({currencySymbol})</span>
               {tripData.photoAlbumUrl && (
                 <a 
                   href={tripData.photoAlbumUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition font-bold"
+                  className="flex items-center gap-1.5 text-blue-600 hover:text-blue-500 transition font-bold"
                 >
                   <Camera className="w-4 h-4" /> Shared Album
                 </a>
@@ -120,7 +120,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             {isOwner && (
               <button 
                 onClick={() => setIsEditing(true)}
-                className="w-full md:w-auto justify-center flex items-center gap-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-4 py-3 md:py-2.5 rounded-xl border border-white/20 transition cursor-pointer backdrop-blur-sm"
+                className="w-full md:w-auto justify-center flex items-center gap-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm transition cursor-pointer"
               >
                 <Edit3 className="w-4 h-4" /> Edit Trip Details
               </button>
@@ -128,32 +128,32 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
           </div>
         </div>
       ) : (
-        <div className="relative z-20 w-full bg-slate-950/70 backdrop-blur-lg border border-white/15 rounded-2xl p-5 sm:p-6 md:p-8 shadow-xl">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
           <form onSubmit={handleSave} className="w-full space-y-4">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="font-bold text-white text-lg drop-shadow-sm">Edit Trip Information</h3>
-              <button type="button" onClick={() => setIsEditing(false)} className="text-slate-300 hover:text-white p-1 cursor-pointer">
+              <h3 className="font-bold text-slate-900 text-lg">Edit Trip Information</h3>
+              <button type="button" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-slate-800">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Trip Title</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Trip Title</label>
                 <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Destination</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Destination</label>
                 <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Status</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Status</label>
                 <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold cursor-pointer">
                   {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Start Date</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Start Date</label>
                 <input 
                   type="date" 
                   value={startDate} 
@@ -163,7 +163,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">End Date</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
                 <input 
                   type="date" 
                   value={endDate} 
@@ -174,7 +174,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Currency</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Currency</label>
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold cursor-pointer">
                   <option value="EUR">EUR (€)</option>
                   <option value="USD">USD ($)</option>
@@ -183,7 +183,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
                 </select>
               </div>
               <div className="md:col-span-2 lg:col-span-3">
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 drop-shadow-sm">Google Photos Shared Album URL</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Google Photos Shared Album URL</label>
                 <input 
                   type="url" 
                   placeholder="https://photos.app.goo.gl/..." 
