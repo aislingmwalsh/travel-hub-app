@@ -151,6 +151,22 @@ useEffect(() => {
             }
           }
 
+          // If we detect the membership map has a legacy format (string or missing email), trigger a silent migration update
+          const isLegacyFormat = typeof memberRole === 'string' || (memberRole && typeof memberRole === 'object' && !memberRole.email);
+          if (isLegacyFormat && user.email) {
+            try {
+              const tripRef = doc(db, "trips", tripId);
+              await updateDoc(tripRef, {
+                [`members.${user.uid}`]: {
+                  role: resolvedRole.toLowerCase(),
+                  email: user.email
+                }
+              });
+            } catch (migrationErr) {
+              console.error("Failed to migrate legacy member object:", migrationErr);
+            }
+          }
+
           // Determine dynamic status based on dates
           const todayStr = new Date().toISOString().split('T')[0];
           let dynamicStatus = tripData.status || 'Planning';
