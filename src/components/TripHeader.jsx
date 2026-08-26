@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Calendar, MapPin, Edit3, Save, X, Tag, Camera } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
-import { getTripCoverUrls } from '../utils/imageUtils';
+import { getTripCoverUrl } from '../utils/imageUtils';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
@@ -28,7 +28,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   const [currency, setCurrency] = useState(tripData.currency || 'EUR');
   const [photoAlbumUrl, setPhotoAlbumUrl] = useState(tripData.photoAlbumUrl || '');
   const currencySymbol = getCurrencySymbol(tripData.currency || 'EUR');
-  const coverUrls = getTripCoverUrls(tripData.destination, true);
+  const coverUrl = getTripCoverUrl(tripData.destination, true);
 
   // Handle start date change and auto-default end date to the next day
   const handleStartDateChange = (e) => {
@@ -77,16 +77,11 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
       className="relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 mb-6 sm:mb-8 text-white min-h-[160px] md:min-h-[180px] flex items-center bg-slate-900"
     >
       <div className="absolute inset-0 z-0">
-        <div className="grid grid-cols-3 h-full w-full opacity-60">
-          {coverUrls.map((url, i) => (
-            <img 
-              key={i} 
-              src={url} 
-              alt={`${tripData.title} cover ${i + 1}`} 
-              className="w-full h-full object-cover border-r border-white/20 last:border-r-0" 
-            />
-          ))}
-        </div>
+        <img 
+          src={coverUrl} 
+          alt={tripData.title} 
+          className="w-full h-full object-cover opacity-60"
+        />
         {/* Dark Radial/Linear Gradient Overlays for High Legibility */}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-slate-900/40 z-10" />
       </div>

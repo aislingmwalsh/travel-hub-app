@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
-import { getTripCoverUrls } from '../utils/imageUtils';
+import { getTripCoverUrl } from '../utils/imageUtils';
 
 function getNextDay(dateStr) {
   if (!dateStr) return '';
@@ -359,7 +359,7 @@ useEffect(() => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedTrips.map(trip => {
             const relativeDateLabel = getRelativeTripTiming(trip.startDate, trip.endDate);
-            const coverUrls = getTripCoverUrls(trip.destination);
+            const coverUrl = getTripCoverUrl(trip.destination);
 
             return (
               <div 
@@ -369,16 +369,11 @@ useEffect(() => {
               >
                 {/* Image Banner */}
                 <div className="relative h-40 bg-slate-100 overflow-hidden">
-                  <div className="grid grid-cols-3 h-full w-full group-hover:scale-105 transition duration-500">
-                    {coverUrls.map((url, i) => (
-                      <img 
-                        key={i} 
-                        src={url} 
-                        alt={`${trip.title} cover ${i + 1}`} 
-                        className="w-full h-full object-cover border-r border-white/30 last:border-r-0" 
-                      />
-                    ))}
-                  </div>
+                  <img 
+                    src={coverUrl} 
+                    alt={trip.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
+                  />
                   {/* Floating Badges */}
                   <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
                     <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm bg-white/95 text-slate-800 backdrop-blur-sm border border-slate-100">
