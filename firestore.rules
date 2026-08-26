@@ -51,8 +51,14 @@ service cloud.firestore {
           resource.data.members[request.auth.uid].role == "owner"))
       );
 
-      // Allow deletion only by the creator
-      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      // Allow deletion by the creator or anyone with the owner role in members
+      allow delete: if signedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        (resource.data.members != null && 
+         resource.data.members[request.auth.uid] != null && 
+         (resource.data.members[request.auth.uid] == "owner" || 
+          resource.data.members[request.auth.uid].role == "owner"))
+      );
 
       // Subcollection: itinerary items
       match /itinerary/{itemId} {
