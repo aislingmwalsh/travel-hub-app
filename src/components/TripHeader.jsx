@@ -75,12 +75,12 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
   return (
     <div className="space-y-6 mb-6 sm:mb-8">
       {/* Cover Image Banner */}
-      <div className="relative h-48 sm:h-60 md:h-72 w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 bg-slate-100">
+      <div className="relative h-48 sm:h-72 md:h-[360px] lg:h-[400px] w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 bg-slate-100">
         <img 
           src={coverUrl} 
           alt={tripData.title} 
           className="w-full h-full object-cover"
-          style={{ objectPosition: 'center 35%' }}
+          style={{ objectPosition: 'center 55%' }}
         />
       </div>
 
