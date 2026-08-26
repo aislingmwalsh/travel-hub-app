@@ -705,7 +705,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh] sm:max-h-[85vh]">
         
         {/* Header */}
-        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
             <h3 className="font-bold text-slate-900 text-base sm:text-lg">Settings & Vault</h3>
             <p className="text-[10px] sm:text-xs text-slate-500">Manage members, global categories, and trip reference documents</p>
@@ -716,7 +716,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Trip Selector Bar */}
-        <div className="px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-50/50 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-50/50 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 shrink-0">
           <label className="text-[10px] sm:text-xs font-bold text-blue-900 uppercase tracking-wider shrink-0">Select Trip:</label>
           <select 
             value={selectedTripId} 
@@ -736,7 +736,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto overflow-y-hidden scrollbar-none h-[46px] items-stretch">
+        <div className="flex border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto overflow-y-hidden scrollbar-none h-[46px] items-stretch shrink-0">
           <button 
             onClick={() => setActiveTab('members')}
             className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
@@ -1137,7 +1137,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 sm:px-6 sm:py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <div className="px-4 py-3 sm:px-6 sm:py-3 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
           <button onClick={onClose} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
             Done
           </button>
