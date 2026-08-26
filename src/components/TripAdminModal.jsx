@@ -1,7 +1,7 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 
@@ -58,26 +58,46 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     async function fetchAdminData() {
       try {
-        // Fetch Trips
-        const snap = await getDocs(collection(db, "trips"));
+        // Fetch Trips using parallel, secure queries to satisfy Firestore rules
+        const qCreated = query(
+          collection(db, "trips"),
+          where("createdBy", "==", currentUser.uid)
+        );
+        const qMember = query(
+          collection(db, "trips"),
+          where(`members.${currentUser.uid}`, "!=", null)
+        );
+
+        const [snapCreated, snapMember] = await Promise.all([
+          getDocs(qCreated),
+          getDocs(qMember)
+        ]);
+
+        // Merge results and deduplicate by ID
+        const tripMap = new Map();
+        snapCreated.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+        snapMember.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+
         const tripList = [];
 
-        for (const docSnap of snap.docs) {
+        for (const docSnap of tripMap.values()) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
           const memberData = tripData.members && tripData.members[currentUser.uid];
           const memberRole = typeof memberData === 'object' ? memberData?.role : memberData;
 
-          if (memberRole || tripData.createdBy === currentUser.uid) {
-            tripList.push({
-              id: tripId,
-              title: tripData.title || 'Untitled Trip',
-              destination: tripData.destination || '',
-              userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
-              members: tripData.members || { [currentUser.uid]: { role: 'owner', email: currentUser.email } }
-            });
-          }
+          tripList.push({
+            id: tripId,
+            title: tripData.title || 'Untitled Trip',
+            destination: tripData.destination || '',
+            userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
+            members: tripData.members || { [currentUser.uid]: { role: 'owner', email: currentUser.email } }
+          });
         }
 
         setAuthorizedTrips(tripList);
@@ -87,7 +107,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           setMembersMap(tripList[0].members);
         }
 
-                // Fetch Global Categories
+        // Fetch Global Categories
         const catSnap = await getDoc(doc(db, "settings", "global_categories"));
         if (catSnap.exists() && catSnap.data().list) {
           // Backward compatibility check if stored list has objects or strings
