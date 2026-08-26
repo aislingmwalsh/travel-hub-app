@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Helper to check if the user is a member or creator of the trip
+    // Uses exists() to safely handle cases before the parent document is fully registered
+    function isTripMember(tripId) {
+      return signedIn() && 
+        exists(/databases/$(database)/documents/trips/$(tripId)) && (
+          get(/databases/$(database)/documents/trips/$(tripId)).data.createdBy == request.auth.uid ||
+          (get(/databases/$(database)/documents/trips/$(tripId)).data.members != null &&
+           get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid] != null)
+        );
+    }
+
+    // Allow read/write access to settings (global categories configuration)
+    match /settings/{documentId} {
+      allow read, write: if signedIn();
+    }
+
+    match /mail/{mailId} {
+      allow create: if signedIn() &&
+        request.resource.data.to is string &&
+        request.resource.data.message.subject is string &&
+        request.resource.data.message.text is string &&
+        request.resource.data.message.html is string;
+
+      allow read, update, delete: if false;
+    }
+
+    match /trips/{tripId} {
+      // Allow reading the trip if signed in and the user is the creator OR in the members map
+      allow read: if signedIn() && (
+        resource.data.createdBy == request.auth.uid || 
+        (resource.data.members != null && resource.data.members[request.auth.uid] != null)
+      );
+
+      // Allow creation of a trip for any signed-in user
+      allow create: if signedIn();
+
+      // Allow update if they are the owner or have the owner role in members
+      allow update: if signedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        (resource.data.members != null && 
+         resource.data.members[request.auth.uid] != null && 
+         (resource.data.members[request.auth.uid] == "owner" || 
+          resource.data.members[request.auth.uid].role == "owner"))
+      );
+
+      // Allow deletion only by the creator
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      // Subcollection: itinerary items
+      match /itinerary/{itemId} {
+        allow read, write: if signedIn() && isTripMember(tripId);
+      }
+
+      // Subcollection: vault links
+      match /vault/{vaultId} {
+        allow read, write: if signedIn() && isTripMember(tripId);
+      }
+
+      // Subcollection: invitations
+      match /invitations/{inviteId} {
+        allow read, write: if signedIn() && isTripMember(tripId);
+      }
+    }
+  }
+}
