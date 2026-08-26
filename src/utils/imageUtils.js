@@ -106,7 +106,7 @@ const SPECIFIC_DESTINATIONS = {
   caribbean: "https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=800&q=80",
 
   // Wine Regions
-  stellenbosch: "https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80",
+  stellenbosch: "https://images.unsplash.com/photo-1572913164478-f02781ccdcde?auto=format&fit=crop&w=800&q=80",
   bordeaux: "https://images.unsplash.com/photo-1504275107627-0c2ba7a43dba?auto=format&fit=crop&w=800&q=80",
   tuscany: "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80",
   napa: "https://images.unsplash.com/photo-1516594738148-0d1264b9b952?auto=format&fit=crop&w=800&q=80",
