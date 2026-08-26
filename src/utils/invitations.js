@@ -1,5 +1,5 @@
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 
 const INVITE_STORAGE_KEY = 'travelHubPendingInvite';
 
@@ -29,50 +29,22 @@ export function clearRememberedInvite() {
   window.localStorage.removeItem(INVITE_STORAGE_KEY);
 }
 
-// Claims an invitation only for the address it was sent to. Keeping this in a
-// transaction prevents the same invite from being claimed by two accounts.
+// Claims an invitation using the secure Cloud Function to bypass client-side database rules restrictions.
 export async function claimRememberedInvite(user) {
   const invite = getRememberedInvite();
   if (!invite || !user?.email) return null;
 
-  const tripRef = doc(db, 'trips', invite.tripId);
-  const inviteRef = doc(db, 'trips', invite.tripId, 'invitations', invite.invitationId);
-  const userEmail = user.email.trim().toLowerCase();
-
-  const outcome = await runTransaction(db, async (transaction) => {
-    const [tripSnap, inviteSnap] = await Promise.all([
-      transaction.get(tripRef),
-      transaction.get(inviteRef),
-    ]);
-
-    if (!tripSnap.exists()) throw new Error('This trip is no longer available.');
-    if (!inviteSnap.exists()) throw new Error('This invitation is invalid or has been removed.');
-
-    const invitation = inviteSnap.data();
-    if (String(invitation.email || '').toLowerCase() !== userEmail) {
-      throw new Error('Sign in with the email address that received this invitation.');
-    }
-    if (invitation.status === 'revoked') throw new Error('This invitation has been revoked.');
-    if (invitation.acceptedBy && invitation.acceptedBy !== user.uid) {
-      throw new Error('This invitation has already been used.');
-    }
-
-    const members = tripSnap.data().members || {};
-    transaction.update(tripRef, {
-      [`members.${user.uid}`]: {
-        role: invitation.role || 'guest',
-        email: user.email,
-      },
-    });
-    transaction.update(inviteRef, {
-      status: 'accepted',
-      acceptedBy: user.uid,
-      acceptedAt: serverTimestamp(),
+  try {
+    const acceptInviteFn = httpsCallable(functions, 'acceptTripInvitation');
+    const result = await acceptInviteFn({
+      tripId: invite.tripId,
+      invitationId: invite.invitationId
     });
 
-    return { tripId: invite.tripId, title: tripSnap.data().title || 'the trip', alreadyMember: Boolean(members[user.uid]) };
-  });
-
-  clearRememberedInvite();
-  return outcome;
+    clearRememberedInvite();
+    return result.data;
+  } catch (error) {
+    console.error('Cloud Function error accepting invite:', error);
+    throw new Error(error.message || 'Unable to accept this trip invitation.');
+  }
 }
