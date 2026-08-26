@@ -422,24 +422,24 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         <div className="space-y-6">
           
           {/* 📦 UNSCHEDULED ACTIVITIES POOL */}
-          <div className="border-0 sm:border border-indigo-200 rounded-none sm:rounded-2xl overflow-hidden bg-transparent sm:bg-indigo-50/20">
+          <div className="border border-indigo-100 rounded-2xl overflow-hidden bg-indigo-50/20 shadow-sm">
             <div 
               onClick={() => setIsUnscheduledOpen(!isUnscheduledOpen)}
-              className="bg-indigo-50/40 sm:bg-indigo-50 hover:bg-indigo-100/60 px-0 sm:px-5 py-2.5 sm:py-3.5 border-b border-indigo-100/60 flex items-center justify-between gap-3 cursor-pointer transition"
+              className="bg-indigo-50/40 hover:bg-indigo-50/60 px-4 sm:px-5 py-3 border-b border-indigo-100 flex items-center justify-between gap-3 cursor-pointer transition"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <Inbox className="w-4 h-4 text-indigo-600 shrink-0" />
-                <h4 className="font-bold text-indigo-900 text-xs uppercase tracking-wider">Unscheduled Ideas Pool</h4>
+                <h4 className="font-bold text-indigo-900 text-xs sm:text-sm uppercase tracking-wider">Unscheduled Ideas Pool</h4>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-indigo-200 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200/50 shadow-sm">
                   {unscheduledItems.length} {unscheduledItems.length === 1 ? 'Idea' : 'Ideas'}
                 </span>
               </div>
             </div>
 
             {isUnscheduledOpen && (
-              <div className="py-3 px-0 sm:p-4">
+              <div className="p-4">
                 <Droppable droppableId="unscheduled" isDropDisabled={isGuest}>
                   {(provided, snapshot) => (
                     <div 
