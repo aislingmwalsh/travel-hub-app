@@ -34,6 +34,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   const [inviteRole, setInviteRole] = useState('collaborator');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteNotice, setInviteNotice] = useState('');
+  const [pendingInvites, setPendingInvites] = useState([]);
 
   // Vault Form States
   const [linkTitle, setLinkTitle] = useState('');
@@ -147,6 +148,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           return String(a.time || '').localeCompare(String(b.time || ''));
         });
         setSelectedItineraryItems(itineraryItems);
+
+        const inviteSnap = await getDocs(collection(db, "trips", selectedTripId, "invitations"));
+        const invites = inviteSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setPendingInvites(invites.filter(inv => inv.status === 'invited'));
 
         const currentTrip = authorizedTrips.find(t => t.id === selectedTripId);
         if (currentTrip) {
@@ -539,11 +544,35 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
       setInviteEmail('');
       setInviteNotice(`Invitation queued for ${emailTrimmed}.`);
+
+      const newInvite = {
+        id: invitationRef.id,
+        email: emailTrimmed,
+        role: inviteRole,
+        status: 'invited',
+        invitedBy: currentUser.uid,
+        inviterEmail: currentUser.email || '',
+        createdAt: new Date(),
+      };
+      setPendingInvites(prev => [...prev, newInvite]);
     } catch (err) {
       console.error("Error adding member:", err);
       setInviteNotice('Could not queue the invitation. Please try again.');
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId) => {
+    if (!isOwner) return;
+    try {
+      await updateDoc(doc(db, "trips", selectedTripId, "invitations", inviteId), {
+        status: 'revoked'
+      });
+      setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId));
+    } catch (err) {
+      console.error("Error revoking invitation:", err);
+      alert("Failed to revoke invitation.");
     }
   };
 
@@ -767,6 +796,32 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                   </div>
                   {inviteNotice && <p className="text-xs text-slate-600">{inviteNotice}</p>}
                 </form>
+              )}
+
+              {/* Pending Invites List */}
+              {pendingInvites.length > 0 && (
+                <div className="space-y-3 p-4 bg-blue-50/30 rounded-2xl border border-blue-100/70">
+                  <h4 className="font-bold text-blue-900 text-xs uppercase tracking-wider">Pending Invitations</h4>
+                  <div className="space-y-2">
+                    {pendingInvites.map(invite => (
+                      <div key={invite.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white rounded-xl border border-slate-200 gap-2 shadow-sm">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-900 text-xs truncate" title={invite.email}>{invite.email}</p>
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded inline-block mt-1">Invited as {invite.role}</span>
+                        </div>
+                        {isOwner && (
+                          <button 
+                            type="button"
+                            onClick={() => handleRevokeInvite(invite.id)} 
+                            className="text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition shrink-0 cursor-pointer text-center sm:text-right"
+                          >
+                            Cancel Invite
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <div className="space-y-3">
