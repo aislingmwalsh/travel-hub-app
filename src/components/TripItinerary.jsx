@@ -422,24 +422,24 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         <div className="space-y-6">
           
           {/* 📦 UNSCHEDULED ACTIVITIES POOL */}
-          <div className="border border-indigo-200 rounded-2xl overflow-hidden bg-indigo-50/20">
+          <div className="border-0 sm:border border-indigo-200 rounded-none sm:rounded-2xl overflow-hidden bg-transparent sm:bg-indigo-50/20">
             <div 
               onClick={() => setIsUnscheduledOpen(!isUnscheduledOpen)}
-            className="bg-indigo-50 hover:bg-indigo-100/60 px-4 sm:px-5 py-3.5 border-b border-indigo-100 flex items-center justify-between gap-3 cursor-pointer transition"
+              className="bg-indigo-50/40 sm:bg-indigo-50 hover:bg-indigo-100/60 px-0 sm:px-5 py-2.5 sm:py-3.5 border-b border-indigo-100/60 flex items-center justify-between gap-3 cursor-pointer transition"
             >
-              <div className="flex items-center gap-2.5">
-                <Inbox className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-bold text-indigo-900 text-xs sm:text-sm uppercase tracking-wider">Unscheduled Ideas Pool</h4>
+              <div className="flex items-center gap-2">
+                <Inbox className="w-4 h-4 text-indigo-600 shrink-0" />
+                <h4 className="font-bold text-indigo-900 text-xs uppercase tracking-wider">Unscheduled Ideas Pool</h4>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] sm:text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-indigo-200 shadow-sm">
                   {unscheduledItems.length} {unscheduledItems.length === 1 ? 'Idea' : 'Ideas'}
                 </span>
               </div>
             </div>
 
-                        {isUnscheduledOpen && (
-              <div className="p-4">
+            {isUnscheduledOpen && (
+              <div className="py-3 px-0 sm:p-4">
                 <Droppable droppableId="unscheduled" isDropDisabled={isGuest}>
                   {(provided, snapshot) => (
                     <div 
@@ -610,21 +610,21 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
             return (
-              <div key={dateStr} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/40">
+              <div key={dateStr} className="border-0 sm:border border-slate-200 rounded-none sm:rounded-2xl overflow-hidden bg-transparent sm:bg-slate-50/40">
                 <div 
-                  className="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between transition"
+                  className="bg-transparent sm:bg-slate-100 px-0 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-200/60 flex items-center justify-between transition"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">{formattedDateHeading}</h4>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                    <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{formattedDateHeading}</h4>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {dayTotal > 0 && <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">Daily Total: {currencySymbol} {dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && activeAccommodations.length === 0 && <span className="text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                  <div className="flex items-center gap-2">
+                    {dayTotal > 0 && <span className="text-[10px] sm:text-xs font-bold text-slate-600 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-slate-200 shadow-sm">{currencySymbol}{dayTotal.toFixed(2)}</span>}
+                    {items.length === 0 && activeAccommodations.length === 0 && <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4">
+                <div className="py-3 px-0 sm:p-4 space-y-4">
                     
                                         {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
                     {activeAccommodations.length > 0 && (
