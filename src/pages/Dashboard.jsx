@@ -110,7 +110,7 @@ useEffect(() => {
         // Query 2: Trips where the user is in the members map
         const qMember = query(
           collection(db, "trips"),
-          where(`members.${user.uid}.email`, "==", user.email)
+          where(`members.${user.uid}`, "!=", null)
         );
 
         // Execute both queries in parallel
