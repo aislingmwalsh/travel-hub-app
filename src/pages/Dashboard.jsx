@@ -1,7 +1,7 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 
 function getNextDay(dateStr) {
@@ -101,12 +101,39 @@ useEffect(() => {
     async function fetchUserTrips() {
       if (!user) return;
       try {
-        const q = query(collection(db, "trips"), orderBy("startDate", "asc"));
-        const snap = await getDocs(q);
-        
+        // Query 1: Trips created by the current user
+        const qCreated = query(
+          collection(db, "trips"),
+          where("createdBy", "==", user.uid)
+        );
+
+        // Query 2: Trips where the user is in the members map
+        const qMember = query(
+          collection(db, "trips"),
+          where(`members.${user.uid}.email`, "==", user.email)
+        );
+
+        // Execute both queries in parallel
+        const [snapCreated, snapMember] = await Promise.all([
+          getDocs(qCreated),
+          getDocs(qMember)
+        ]);
+
+        const tripMap = new Map();
+
+        // Process created trips
+        snapCreated.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+
+        // Process member trips
+        snapMember.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+
         const authorizedTrips = [];
 
-                for (const docSnap of snap.docs) {
+        for (const docSnap of tripMap.values()) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
@@ -123,37 +150,41 @@ useEffect(() => {
             }
           }
 
-          // If the user is in the members map OR if they created it (fallback), show the trip
-          if (memberRole || tripData.createdBy === user.uid) {
-            // Determine dynamic status based on dates
-            const todayStr = new Date().toISOString().split('T')[0];
-            let dynamicStatus = tripData.status || 'Planning';
-            
-            // Check if end date passed
-            if (tripData.endDate && tripData.endDate < todayStr) {
-              dynamicStatus = 'Completed';
-            } else if (tripData.startDate && tripData.startDate <= todayStr) {
-              dynamicStatus = 'In Progress';
-            }
-
-            // Sync with Firestore if the dynamic status has changed and user is Owner to avoid excessive write loops
-            if (dynamicStatus !== tripData.status && (resolvedRole === 'OWNER' || tripData.createdBy === user.uid)) {
-              try {
-                const tripRef = doc(db, "trips", tripId);
-                await updateDoc(tripRef, { status: dynamicStatus });
-              } catch (updateErr) {
-                console.error("Error auto-updating trip status:", updateErr);
-              }
-            }
-
-            authorizedTrips.push({
-              id: tripId,
-              ...tripData,
-              status: dynamicStatus,
-              userRole: resolvedRole
-            });
+          // Determine dynamic status based on dates
+          const todayStr = new Date().toISOString().split('T')[0];
+          let dynamicStatus = tripData.status || 'Planning';
+          
+          // Check if end date passed
+          if (tripData.endDate && tripData.endDate < todayStr) {
+            dynamicStatus = 'Completed';
+          } else if (tripData.startDate && tripData.startDate <= todayStr) {
+            dynamicStatus = 'In Progress';
           }
+
+          // Sync with Firestore if the dynamic status has changed and user is Owner to avoid excessive write loops
+          if (dynamicStatus !== tripData.status && (resolvedRole === 'OWNER' || tripData.createdBy === user.uid)) {
+            try {
+              const tripRef = doc(db, "trips", tripId);
+              await updateDoc(tripRef, { status: dynamicStatus });
+            } catch (updateErr) {
+              console.error("Error auto-updating trip status:", updateErr);
+            }
+          }
+
+          authorizedTrips.push({
+            id: tripId,
+            ...tripData,
+            status: dynamicStatus,
+            userRole: resolvedRole
+          });
         }
+
+        // Sort authorized trips in memory by startDate (ascending)
+        authorizedTrips.sort((a, b) => {
+          const aDate = a.startDate || '';
+          const bDate = b.startDate || '';
+          return aDate.localeCompare(bDate);
+        });
 
         setTrips(authorizedTrips);
       } catch (err) {
