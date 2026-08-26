@@ -74,62 +74,61 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
 
   return (
     <div 
-      className="relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 mb-6 sm:mb-8 text-white min-h-[160px] md:min-h-[180px] flex items-center bg-slate-900"
+      className="relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 mb-6 sm:mb-8 text-white min-h-[260px] md:min-h-[300px] flex items-end p-4 sm:p-6 bg-slate-900"
     >
       <div className="absolute inset-0 z-0">
         <img 
           src={coverUrl} 
           alt={tripData.title} 
-          className="w-full h-full object-cover opacity-60"
+          className="w-full h-full object-cover opacity-95"
+          style={{ objectPosition: 'center 35%' }}
         />
-        {/* Dark Radial/Linear Gradient Overlays for High Legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-slate-900/40 z-10" />
       </div>
 
-      <div className="relative z-20 w-full p-6 sm:p-8 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        {!isEditing ? (
-          <>
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white drop-shadow-sm">{tripData.title}</h1>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
-                  tripData.status === 'Booked' ? 'bg-emerald-500/90 text-white border-emerald-400' :
-                  tripData.status === 'In Progress' ? 'bg-blue-600/90 text-white border-blue-500' :
-                  tripData.status === 'Completed' ? 'bg-slate-600/90 text-white border-slate-500' :
-                  'bg-amber-500/90 text-white border-amber-400'
-                }`}>
-                  {tripData.status || 'Planning'}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-200 font-semibold drop-shadow-sm">
-                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-400" /> {tripData.destination}</span>
-                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-400" /> {tripData.startDate} to {tripData.endDate}</span>
-                <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-400" /> {tripData.currency || 'EUR'} ({currencySymbol})</span>
-                {tripData.photoAlbumUrl && (
-                  <a 
-                    href={tripData.photoAlbumUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition font-bold"
-                  >
-                    <Camera className="w-4 h-4" /> Shared Album
-                  </a>
-                )}
-              </div>
+      {!isEditing ? (
+        <div className="relative z-20 w-full bg-slate-950/50 backdrop-blur-md border border-white/10 rounded-2xl p-5 sm:p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-lg">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white drop-shadow-sm">{tripData.title}</h1>
+              <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
+                tripData.status === 'Booked' ? 'bg-emerald-500/90 text-white border-emerald-400' :
+                tripData.status === 'In Progress' ? 'bg-blue-600/90 text-white border-blue-500' :
+                tripData.status === 'Completed' ? 'bg-slate-600/90 text-white border-slate-500' :
+                'bg-amber-500/90 text-white border-amber-400'
+              }`}>
+                {tripData.status || 'Planning'}
+              </span>
             </div>
-
-            <div className="flex w-full md:w-auto items-center gap-2 flex-wrap shrink-0">
-              {isOwner && (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="w-full md:w-auto justify-center flex items-center gap-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-4 py-3 md:py-2.5 rounded-xl border border-white/20 transition cursor-pointer backdrop-blur-sm"
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-200 font-semibold drop-shadow-sm">
+              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-400" /> {tripData.destination}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-400" /> {tripData.startDate} to {tripData.endDate}</span>
+              <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-400" /> {tripData.currency || 'EUR'} ({currencySymbol})</span>
+              {tripData.photoAlbumUrl && (
+                <a 
+                  href={tripData.photoAlbumUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition font-bold"
                 >
-                  <Edit3 className="w-4 h-4" /> Edit Trip Details
-                </button>
+                  <Camera className="w-4 h-4" /> Shared Album
+                </a>
               )}
             </div>
-          </>
-        ) : (
+          </div>
+
+          <div className="flex w-full md:w-auto items-center gap-2 flex-wrap shrink-0">
+            {isOwner && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="w-full md:w-auto justify-center flex items-center gap-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-4 py-3 md:py-2.5 rounded-xl border border-white/20 transition cursor-pointer backdrop-blur-sm"
+              >
+                <Edit3 className="w-4 h-4" /> Edit Trip Details
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="relative z-20 w-full bg-slate-950/70 backdrop-blur-lg border border-white/15 rounded-2xl p-5 sm:p-6 md:p-8 shadow-xl">
           <form onSubmit={handleSave} className="w-full space-y-4">
             <div className="flex justify-between items-center mb-2">
               <h3 className="font-bold text-white text-lg drop-shadow-sm">Edit Trip Information</h3>
@@ -201,8 +200,8 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
               </button>
             </div>
           </form>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
