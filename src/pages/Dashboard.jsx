@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
+import { getTripCoverUrl } from '../utils/imageUtils';
 
 function getNextDay(dateStr) {
   if (!dateStr) return '';
@@ -341,47 +342,65 @@ useEffect(() => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedTrips.map(trip => {
-            const theme = getSeasonalTheme(trip.startDate);
             const relativeDateLabel = getRelativeTripTiming(trip.startDate, trip.endDate);
+            const coverUrl = getTripCoverUrl(trip.destination);
 
             return (
               <div 
                 key={trip.id} 
                 onClick={() => onSelectTrip && onSelectTrip(trip.id)}
-                className={`${theme.bg} rounded-3xl border ${theme.border} shadow-sm hover:shadow-md transition cursor-pointer group overflow-hidden ${trip.status === 'In Progress' ? 'ring-2 ring-blue-200 border-blue-300' : ''}`}
+                className={`bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer group overflow-hidden ${trip.status === 'In Progress' ? 'ring-2 ring-blue-200 border-blue-300' : ''}`}
               >
-                <div className={`px-5 py-4 border-b ${theme.border} bg-white`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-lg text-slate-900 truncate group-hover:text-blue-600 transition">{trip.title}</h3>
-                      {trip.destination && (
-                        <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                          <span className="truncate">{trip.destination}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm text-slate-500 flex-shrink-0">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>{relativeDateLabel}</span>
-                    </div>
+                {/* Image Banner */}
+                <div className="relative h-40 bg-slate-100 overflow-hidden">
+                  <img 
+                    src={coverUrl} 
+                    alt={trip.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
+                  />
+                  {/* Floating Badges */}
+                  <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm bg-white/95 text-slate-800 backdrop-blur-sm border border-slate-100">
+                      {trip.userRole}
+                    </span>
+                    {trip.status && (
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm border backdrop-blur-sm ${
+                        trip.status === 'Booked' ? 'bg-emerald-500/90 text-white border-emerald-400' :
+                        trip.status === 'In Progress' ? 'bg-blue-600/90 text-white border-blue-500' :
+                        trip.status === 'Completed' ? 'bg-slate-600/90 text-white border-slate-500' :
+                        'bg-amber-500/90 text-white border-amber-400'
+                      }`}>
+                        {trip.status}
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute top-3 right-3">
+                    <span className="text-[9px] font-bold text-slate-700 bg-white/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow-sm border border-slate-100 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-blue-500" />
+                      {relativeDateLabel}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4 bg-white">
-                  <div className="grid grid-cols-3 items-center gap-1.5 sm:flex sm:flex-nowrap sm:justify-between sm:gap-2">
-                      <span className={`w-full text-center whitespace-nowrap text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] px-2 sm:px-2.5 py-1 rounded-full ${theme.badge}`}>
-                        {trip.userRole}
-                      </span>
-                      {trip.status && (
-                        <span className="w-full text-center whitespace-nowrap text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] px-2 sm:px-2.5 py-1 rounded-full border border-slate-200 bg-slate-100 text-slate-700">
-                          {trip.status}
-                        </span>
-                      )}
+                {/* Content Section */}
+                <div className="p-5 space-y-4">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-lg text-slate-900 truncate group-hover:text-blue-600 transition">{trip.title}</h3>
+                    {trip.destination && (
+                      <div className="flex items-center gap-1.5 text-sm text-slate-500 mt-1 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                        <span className="truncate">{trip.destination}</span>
+                      </div>
+                    )}
+                  </div>
 
-                    <span className="w-full justify-center whitespace-nowrap flex items-center gap-1 text-[9px] sm:w-auto sm:text-[10px] font-semibold uppercase tracking-wide sm:tracking-[0.18em] text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-2 sm:px-3 py-1 transition hover:bg-blue-200 hover:text-blue-900">
+                  <div className="pt-3 border-t border-slate-100 flex justify-between items-center gap-2">
+                    <span className="text-xs text-slate-400 font-medium">
+                      {trip.startDate}
+                    </span>
+                    <span className="whitespace-nowrap flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-full px-3 py-1.5 transition">
                       <span>View itinerary</span>
-                      <ArrowRight className="w-3 h-3" />
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
                 </div>
