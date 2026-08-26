@@ -672,14 +672,14 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   const categoryNames = categories.map(c => typeof c === 'string' ? c : c.name);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh] sm:max-h-[85vh]">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
-            <h3 className="font-bold text-slate-900 text-lg">Settings & Vault</h3>
-            <p className="text-xs text-slate-500">Manage members, global categories, and trip reference documents</p>
+            <h3 className="font-bold text-slate-900 text-base sm:text-lg">Settings & Vault</h3>
+            <p className="text-[10px] sm:text-xs text-slate-500">Manage members, global categories, and trip reference documents</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition cursor-pointer">
             <X className="w-5 h-5 text-slate-500" />
@@ -687,12 +687,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Trip Selector Bar */}
-        <div className="px-6 py-3 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between gap-4">
-          <label className="text-xs font-bold text-blue-900 uppercase tracking-wider shrink-0">Select Trip:</label>
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-50/50 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+          <label className="text-[10px] sm:text-xs font-bold text-blue-900 uppercase tracking-wider shrink-0">Select Trip:</label>
           <select 
             value={selectedTripId} 
             onChange={handleTripSelect}
-            className="w-full bg-white border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 cursor-pointer shadow-sm"
+            className="w-full bg-white border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 cursor-pointer shadow-sm focus:outline-none"
           >
             {authorizedTrips.length === 0 ? (
               <option value="">No managed trips available</option>
@@ -707,35 +707,35 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 px-6 bg-slate-50/50 overflow-x-auto">
+        <div className="flex border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto scrollbar-none">
           <button 
             onClick={() => setActiveTab('members')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <Users className="w-4 h-4" /> Travelers & Roles
           </button>
           <button 
             onClick={() => setActiveTab('vault')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <LinkIcon className="w-4 h-4" /> Documents & Links Vault
           </button>
           <button 
             onClick={() => setActiveTab('categories')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <Tag className="w-4 h-4" /> Activity Types
           </button>
           <button 
             onClick={() => setActiveTab('export')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'export' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'export' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             <Download className="w-4 h-4" /> Export PDF
           </button>
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto flex-grow space-y-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-grow space-y-6">
           
           {/* TAB 1: MEMBERS */}
           {activeTab === 'members' && (
@@ -743,25 +743,25 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
               {isOwner && (
                 <form onSubmit={handleAddMember} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                   <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Invite Traveler</h4>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input 
                       type="email" 
                       placeholder="traveler@example.com" 
                       value={inviteEmail} 
                       onChange={(e) => setInviteEmail(e.target.value)} 
                       required 
-                      className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+                      className="w-full sm:flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
                     />
                     <select 
                       value={inviteRole} 
                       onChange={(e) => setInviteRole(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                      className="w-full sm:w-auto bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
                     >
                       <option value="owner">Owner</option>
                       <option value="collaborator">Collaborator</option>
                       <option value="guest">Guest</option>
                     </select>
-                    <button type="submit" disabled={sendingInvite} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                    <button type="submit" disabled={sendingInvite} className="w-full sm:w-auto justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
                       <UserPlus className="w-3.5 h-3.5" /> {sendingInvite ? 'Sending...' : 'Send invite'}
                     </button>
                   </div>
@@ -773,23 +773,25 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                 <h4 className="font-bold text-slate-800 text-sm">Trip Party Members</h4>
                 <div className="space-y-2">
                   {memberEntries.map(member => (
-                    <div key={member.key} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs">{member.email}</p>
-                        <span className="text-[10px] text-slate-400 font-mono">ID: {member.key}</span>
+                    <div key={member.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200 gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-900 text-xs truncate" title={member.email}>{member.email}</p>
+                        <span className="text-[10px] text-slate-400 font-mono block truncate">ID: {member.key}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-3.5 h-3.5 text-slate-400" />
-                        <select 
-                          value={member.role}
-                          disabled={!isOwner}
-                          onChange={(e) => handleRoleChange(member.key, e.target.value)}
-                          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
-                        >
-                          <option value="owner">Owner</option>
-                          <option value="collaborator">Collaborator</option>
-                          <option value="guest">Guest</option>
-                        </select>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-slate-400" />
+                          <select 
+                            value={member.role}
+                            disabled={!isOwner}
+                            onChange={(e) => handleRoleChange(member.key, e.target.value)}
+                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-60"
+                          >
+                            <option value="owner">Owner</option>
+                            <option value="collaborator">Collaborator</option>
+                            <option value="guest">Guest</option>
+                          </select>
+                        </div>
                         {isOwner && member.key !== currentUser.uid && (
                           <button onClick={() => handleRemoveMember(member.key)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Remove">
                             <Trash2 className="w-4 h-4" />
@@ -806,12 +808,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                   <h4 className="font-bold text-red-600 text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4" /> Danger Zone
                   </h4>
-                  <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex items-center justify-between gap-4">
+                  <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <p className="font-bold text-red-900 text-xs">Cancel & Delete This Trip</p>
                       <p className="text-[11px] text-red-700">Permanently removes this trip and its itinerary.</p>
                     </div>
-                    <button onClick={handleDeleteTrip} className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm">
+                    <button onClick={handleDeleteTrip} className="w-full sm:w-auto justify-center bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm">
                       <Trash2 className="w-3.5 h-3.5" /> Delete Trip
                     </button>
                   </div>
@@ -856,15 +858,15 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                 ) : (
                   <div className="space-y-2">
                     {vaultLinks.map(link => (
-                      <div key={link.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Globe className="w-4 h-4" /></div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-xs">{link.title}</p>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">{link.category}</span>
+                      <div key={link.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0"><Globe className="w-4 h-4" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 text-xs truncate" title={link.title}>{link.title}</p>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded inline-block mt-0.5">{link.category}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 shrink-0">
                           <a href={link.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-blue-600 transition" title="Open"><ExternalLink className="w-4 h-4" /></a>
                           <button onClick={() => handleDeleteLink(link.id)} className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
                         </div>
@@ -1080,7 +1082,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <div className="px-4 py-3 sm:px-6 sm:py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button onClick={onClose} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-5 py-2 rounded-xl text-xs cursor-pointer">
             Done
           </button>
