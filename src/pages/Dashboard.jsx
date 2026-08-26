@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
-import { getTripCoverUrl } from '../utils/imageUtils';
+import { getTripCoverUrls } from '../utils/imageUtils';
 
 function getNextDay(dateStr) {
   if (!dateStr) return '';
@@ -343,7 +343,7 @@ useEffect(() => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedTrips.map(trip => {
             const relativeDateLabel = getRelativeTripTiming(trip.startDate, trip.endDate);
-            const coverUrl = getTripCoverUrl(trip.destination);
+            const coverUrls = getTripCoverUrls(trip.destination);
 
             return (
               <div 
@@ -353,13 +353,28 @@ useEffect(() => {
               >
                 {/* Image Banner */}
                 <div className="relative h-40 bg-slate-100 overflow-hidden">
-                  <img 
-                    src={coverUrl} 
-                    alt={trip.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
-                  />
+                  {coverUrls.length === 1 ? (
+                    <img 
+                      src={coverUrls[0]} 
+                      alt={trip.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
+                    />
+                  ) : (
+                    <div className={`grid h-full w-full group-hover:scale-105 transition duration-500 ${
+                      coverUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+                    }`}>
+                      {coverUrls.slice(0, 3).map((url, i) => (
+                        <img 
+                          key={i} 
+                          src={url} 
+                          alt={`${trip.title} cover ${i + 1}`} 
+                          className="w-full h-full object-cover border-r border-white/30 last:border-r-0" 
+                        />
+                      ))}
+                    </div>
+                  )}
                   {/* Floating Badges */}
-                  <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
                     <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm bg-white/95 text-slate-800 backdrop-blur-sm border border-slate-100">
                       {trip.userRole}
                     </span>
@@ -374,7 +389,7 @@ useEffect(() => {
                       </span>
                     )}
                   </div>
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 z-10">
                     <span className="text-[9px] font-bold text-slate-700 bg-white/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow-sm border border-slate-100 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-blue-500" />
                       {relativeDateLabel}

@@ -10,44 +10,53 @@ const IMAGES = {
   generic: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80"
 };
 
-export function getTripCoverUrl(destination, isHeader = false) {
+export function getTripCoverUrls(destination, isHeader = false) {
   const dest = String(destination || '').trim().toLowerCase();
-  let selected = IMAGES.generic;
+  const matched = [];
 
   if (dest) {
     // Beach & Tropical keywords
     if (/\b(beach|island|coast|sea|ocean|sun|bali|maldives|hawaii|phuket|bahamas|cancun|caribbean|tropical|coastline|surf|surfing)\b/.test(dest)) {
-      selected = IMAGES.beach;
+      matched.push('beach');
     }
     // Asian keywords
-    else if (/\b(tokyo|kyoto|osaka|japan|seoul|korea|bangkok|thailand|shanghai|beijing|china|singapore|vietnam|hanoi|asia|taipei|taiwan)\b/.test(dest)) {
-      selected = IMAGES.asia;
+    if (/\b(tokyo|kyoto|osaka|japan|seoul|korea|bangkok|thailand|shanghai|beijing|china|singapore|vietnam|hanoi|asia|taipei|taiwan)\b/.test(dest)) {
+      matched.push('asia');
     }
     // European keywords (excluding mountains check first)
-    else if (/\b(paris|france|london|uk|england|rome|italy|venice|florence|spain|barcelona|madrid|europe|prague|amsterdam|greece|athens|vienna|austria|swiss|switzerland|alps|berlin|munich|germany|cork|dublin|ireland)\b/.test(dest)) {
+    if (/\b(paris|france|london|uk|england|rome|italy|venice|florence|spain|barcelona|madrid|europe|prague|amsterdam|greece|athens|vienna|austria|swiss|switzerland|alps|berlin|munich|germany|cork|dublin|ireland)\b/.test(dest)) {
       if (/\b(swiss|switzerland|alps)\b/.test(dest)) {
-        selected = IMAGES.mountain;
+        matched.push('mountain');
       } else {
-        selected = IMAGES.europe;
+        matched.push('europe');
       }
     }
     // Mountains & Outdoor keywords
-    else if (/\b(mountain|mountains|hike|hiking|lake|forest|nature|outdoor|outdoors|camping|national park|yosemite|yellowstone|rockies|denali)\b/.test(dest)) {
-      selected = IMAGES.mountain;
+    if (/\b(mountain|mountains|hike|hiking|lake|forest|nature|outdoor|outdoors|camping|national park|yosemite|yellowstone|rockies|denali)\b/.test(dest)) {
+      if (!matched.includes('mountain')) {
+        matched.push('mountain');
+      }
     }
     // Winter keywords
-    else if (/\b(snow|winter|ski|ice|iceland|arctic|alaska|lapland|glacier)\b/.test(dest)) {
-      selected = IMAGES.winter;
+    if (/\b(snow|winter|ski|ice|iceland|arctic|alaska|lapland|glacier)\b/.test(dest)) {
+      matched.push('winter');
     }
     // Skyline/Cities
-    else if (/\b(city|nyc|new york|chicago|sydney|melbourne|skyline|urban|boston|san francisco|toronto)\b/.test(dest)) {
-      selected = IMAGES.city;
+    if (/\b(city|nyc|new york|chicago|sydney|melbourne|skyline|urban|boston|san francisco|toronto)\b/.test(dest)) {
+      matched.push('city');
     }
   }
 
-  if (isHeader) {
-    return selected.replace('w=800', 'w=1200');
-  }
-  return selected;
-}
+  // Deduplicate matched themes
+  const uniqueMatched = Array.from(new Set(matched));
 
+  if (uniqueMatched.length === 0) {
+    uniqueMatched.push('generic');
+  }
+
+  // Map theme names to image URLs, replacing resolution if it is a header
+  return uniqueMatched.map(theme => {
+    const url = IMAGES[theme];
+    return isHeader ? url.replace('w=800', 'w=1200') : url;
+  });
+}
