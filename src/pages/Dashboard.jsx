@@ -369,26 +369,16 @@ useEffect(() => {
               >
                 {/* Image Banner */}
                 <div className="relative h-40 bg-slate-100 overflow-hidden">
-                  {coverUrls.length === 1 ? (
-                    <img 
-                      src={coverUrls[0]} 
-                      alt={trip.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
-                    />
-                  ) : (
-                    <div className={`grid h-full w-full group-hover:scale-105 transition duration-500 ${
-                      coverUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
-                    }`}>
-                      {coverUrls.slice(0, 3).map((url, i) => (
-                        <img 
-                          key={i} 
-                          src={url} 
-                          alt={`${trip.title} cover ${i + 1}`} 
-                          className="w-full h-full object-cover border-r border-white/30 last:border-r-0" 
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div className="grid grid-cols-3 h-full w-full group-hover:scale-105 transition duration-500">
+                    {coverUrls.map((url, i) => (
+                      <img 
+                        key={i} 
+                        src={url} 
+                        alt={`${trip.title} cover ${i + 1}`} 
+                        className="w-full h-full object-cover border-r border-white/30 last:border-r-0" 
+                      />
+                    ))}
+                  </div>
                   {/* Floating Badges */}
                   <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
                     <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm bg-white/95 text-slate-800 backdrop-blur-sm border border-slate-100">
