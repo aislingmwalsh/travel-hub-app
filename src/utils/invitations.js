@@ -41,10 +41,11 @@ export async function claimRememberedInvite(user) {
       invitationId: invite.invitationId
     });
 
-    clearRememberedInvite();
     return result.data;
   } catch (error) {
     console.error('Cloud Function error accepting invite:', error);
     throw new Error(error.message || 'Unable to accept this trip invitation.');
+  } finally {
+    clearRememberedInvite();
   }
 }
