@@ -1,8 +1,7 @@
-// src/components/PackingList.jsx
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
-import { doc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
-import { Plus, Trash2, Mail, Check, Square, CheckSquare, User, Loader2 } from 'lucide-react';
+import { doc, getDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { Plus, Trash2, Mail, Check, Square, CheckSquare, User, Loader2, History, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {}, userRole = 'Guest', tripTitle = 'Our Trip' }) {
   const [items, setItems] = useState([]);
@@ -10,8 +9,37 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
   const [loading, setLoading] = useState(true);
   const [emailing, setEmailing] = useState(false);
   const [emailNotice, setEmailNotice] = useState('');
+  const [recentEmails, setRecentEmails] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   const isGuest = userRole === 'Guest';
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const q = query(
+      collection(db, "mail"),
+      where("senderUid", "==", auth.currentUser.uid),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort in-memory to avoid composite index requirements
+      logs.sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return timeB - timeA;
+      });
+      setRecentEmails(logs.slice(0, 5));
+    }, (error) => {
+      console.error("Error fetching mail logs:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!tripId) return;
@@ -114,6 +142,9 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
         memberList.push({ uid: auth.currentUser.uid, email: currentUserEmail });
       }
 
+      console.log("Raw tripMembers:", tripMembers);
+      console.log("Resolved memberList for emailing:", memberList);
+
       if (memberList.length === 0) {
         setEmailNotice('No members with valid emails found.');
         setEmailing(false);
@@ -144,6 +175,8 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
       await Promise.all(memberList.map(member => 
         addDoc(collection(db, "mail"), {
           to: member.email,
+          senderUid: auth.currentUser?.uid || '',
+          createdAt: new Date(),
           message: {
             subject: `📋 Shared Packing List for ${tripTitle}`,
             html: listHtml,
@@ -152,7 +185,9 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
         })
       ));
 
-      setEmailNotice('Packing list emailed to all travelers! ✉️');
+      console.log("Queued emails in /mail for members:", memberList);
+
+      setEmailNotice(`Emailed to: ${memberList.map(m => m.email).join(', ')} ✉️`);
       setTimeout(() => setEmailNotice(''), 4000);
     } catch (err) {
       console.error("Error emailing packing list:", err);
@@ -298,6 +333,69 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
           })}
         </div>
       )}
+
+      {/* Email Queue History Section */}
+      <div className="pt-6 border-t border-slate-200 mt-8 space-y-4">
+        <button
+          onClick={() => setShowLogs(!showLogs)}
+          type="button"
+          className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer select-none"
+        >
+          <History className="w-4 h-4 text-blue-600" />
+          {showLogs ? 'Hide Email Delivery Log' : 'Show Email Delivery Log'}
+        </button>
+
+        {showLogs && (
+          <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 animate-fade-in">
+            <h4 className="text-xs font-bold text-slate-700">Email Delivery Log (Recent 5 runs)</h4>
+            {recentEmails.length === 0 ? (
+              <p className="text-[11px] text-slate-400">No emails sent by you in this session yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {recentEmails.map(log => {
+                  let dateStr = 'Unknown';
+                  try {
+                    const time = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt || 0);
+                    dateStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  } catch (e) {
+                    console.error("Error parsing date:", e);
+                  }
+                  
+                  const state = log.delivery?.state || 'QUEUED';
+                  const error = log.delivery?.error || '';
+                  
+                  return (
+                    <div key={log.id} className="py-2 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] gap-2">
+                      <div>
+                        <span className="font-bold text-slate-700">To: </span>
+                        <span className="font-semibold text-blue-600">{log.to}</span>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">Sent at {dateStr}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {state === 'SUCCESS' && (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px]">
+                            <CheckCircle className="w-3.5 h-3.5" /> SUCCESS
+                          </span>
+                        )}
+                        {state === 'ERROR' && (
+                          <span className="bg-red-50 text-red-700 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px]" title={error}>
+                            <AlertCircle className="w-3.5 h-3.5" /> ERROR: {error || 'Failed'}
+                          </span>
+                        )}
+                        {state !== 'SUCCESS' && state !== 'ERROR' && (
+                          <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px]">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> {state}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
     </div>
   );
