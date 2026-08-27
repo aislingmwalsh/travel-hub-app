@@ -132,8 +132,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     try {
       const { Route } = await window.google.maps.importLibrary("routes");
       const request = {
-        origin: { address: origin.trim() },
-        destination: { address: destination.trim() },
+        origin: origin.trim(),
+        destination: destination.trim(),
         travelMode: mode,
         fields: ['routes.duration', 'routes.distanceMeters']
       };
