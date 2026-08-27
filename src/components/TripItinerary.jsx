@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Inbox, Building2, Trash2, Edit2, MapPin } from 'lucide-react';
+import { Calendar, Settings, Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -97,6 +97,107 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [showPredictions, setShowPredictions] = useState(false);
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  // Suggested travel time states
+  const [travelCache, setTravelCache] = useState(() => {
+    try {
+      const saved = localStorage.getItem('travelHubRouteCache');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [travelModes, setTravelModes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('travelHubPreferredModes');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [loadingSegments, setLoadingSegments] = useState({});
+
+  const fetchRoute = async (origin, destination, mode, segmentKey) => {
+    if (!origin || !destination || !window.google?.maps) return;
+    const cacheKey = `${origin.trim()}||${destination.trim()}||${mode}`;
+    
+    if (travelCache[cacheKey]) {
+      return travelCache[cacheKey];
+    }
+
+    setLoadingSegments(prev => ({ ...prev, [segmentKey]: true }));
+
+    try {
+      const routesLibrary = await window.google.maps.importLibrary("routes");
+      const request = {
+        origin: { address: origin.trim() },
+        destination: { address: destination.trim() },
+        travelMode: mode,
+        fields: ['routes.duration', 'routes.distanceMeters']
+      };
+
+      const response = await routesLibrary.computeRoutes(request);
+      
+      if (response && response.routes && response.routes.length > 0) {
+        const route = response.routes[0];
+        const durationSeconds = parseInt(route.duration.replace('s', ''));
+        const durationMins = Math.round(durationSeconds / 60);
+        const distanceKm = (route.distanceMeters / 1000).toFixed(1);
+        
+        const routeData = {
+          duration: durationMins,
+          distance: distanceKm
+        };
+
+        setTravelCache(prev => {
+          const updated = { ...prev, [cacheKey]: routeData };
+          localStorage.setItem('travelHubRouteCache', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error("Error computing route:", err);
+    } finally {
+      setLoadingSegments(prev => ({ ...prev, [segmentKey]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!window.google?.maps || itineraryItems.length === 0) return;
+
+    const grouped = {};
+    itineraryItems.forEach(item => {
+      if (item.date && !isAccommodation(item.category)) {
+        if (!grouped[item.date]) grouped[item.date] = [];
+        grouped[item.date].push(item);
+      }
+    });
+
+    Object.keys(grouped).forEach(dateStr => {
+      const sorted = [...grouped[dateStr]].sort((a, b) => {
+        if (a.time === 'Flexible') return 1;
+        if (b.time === 'Flexible') return -1;
+        return a.time.localeCompare(b.time);
+      });
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const itemA = sorted[i];
+        const itemB = sorted[i + 1];
+        
+        if (itemA.location && itemB.location) {
+          const segmentKey = `${itemA.id}-${itemB.id}`;
+          const mode = travelModes[segmentKey] || 'DRIVE';
+          const cacheKey = `${itemA.location.trim()}||${itemB.location.trim()}||${mode}`;
+          
+          if (!travelCache[cacheKey] && !loadingSegments[segmentKey]) {
+            fetchRoute(itemA.location, itemB.location, mode, segmentKey);
+          }
+        }
+      }
+    });
+  }, [itineraryItems, travelModes, window.google?.maps]);
 
     useEffect(() => {
     async function fetchData() {
@@ -868,42 +969,103 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               Drop activities here
                             </div>
                           ) : (
-                            items.map((item, index) => (
-                              <ItineraryCard 
-                                key={item.id}
-                                item={item} 
-                                index={index} 
-                                currency={currency}
-                                isExpanded={expandedCardId === item.id}
-                                onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
-                                isEditing={editingCardId === item.id}
-                                onStartEdit={(e) => handleStartEdit(item, e)}
-                                onSaveEdit={(paidFlag) => handleSaveEdit(item.id, paidFlag)}
-                                onCancelEdit={() => { setEditingCardId(null); setEditPaidInAdvance(false); }}
-                                onDelete={(e) => handleDeleteItem(item.id, e)}
-                                onToggleHighlight={async (itemId, newHighlightState) => {
-                                  try {
-                                    await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
-                                    setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
-                                  } catch (err) { console.error(err); }
-                                }}
-                                editPaidInAdvance={editPaidInAdvance} setEditPaidInAdvance={setEditPaidInAdvance}
-                                editTitle={editTitle} setEditTitle={setEditTitle}
-                                editDate={editDate} setEditDate={setEditDate} 
-                                editEndDate={editEndDate} setEditEndDate={setEditEndDate}
-                                effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
-                                editHour={editHour} setEditHour={setEditHour} 
-                                editMinute={editMinute} setEditMinute={setEditMinute} 
-                                editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
-                                hours={hours} minutes={minutes}
-                                editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
-                                editCost={editCost} setEditCost={setEditCost}
-                                editLocation={editLocation} setEditLocation={setEditLocation}
-                                editDetails={editDetails} setEditDetails={setEditDetails}
-                                isGuest={isGuest}
-                                categoriesWithColors={categoriesWithColors}
-                            />
-                            ))
+                            items.map((item, index) => {
+                              const nextItem = items[index + 1];
+                              const showTransit = nextItem && item.location && nextItem.location;
+                              const segmentKey = `${item.id}-${nextItem.id}`;
+                              const preferredMode = travelModes[segmentKey] || 'DRIVE';
+                              const cacheKey = `${item.location?.trim()}||${nextItem?.location?.trim()}||${preferredMode}`;
+                              const routeInfo = travelCache[cacheKey];
+                              const isLoading = loadingSegments[segmentKey];
+
+                              return (
+                                <React.Fragment key={item.id}>
+                                  <ItineraryCard 
+                                    item={item} 
+                                    index={index} 
+                                    currency={currency}
+                                    isExpanded={expandedCardId === item.id}
+                                    onToggleExpand={() => setExpandedCardId(expandedCardId === item.id ? null : item.id)}
+                                    isEditing={editingCardId === item.id}
+                                    onStartEdit={(e) => handleStartEdit(item, e)}
+                                    onSaveEdit={(paidFlag) => handleSaveEdit(item.id, paidFlag)}
+                                    onCancelEdit={() => { setEditingCardId(null); setEditPaidInAdvance(false); }}
+                                    onDelete={(e) => handleDeleteItem(item.id, e)}
+                                    onToggleHighlight={async (itemId, newHighlightState) => {
+                                      try {
+                                        await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), { highlighted: newHighlightState });
+                                        setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, highlighted: newHighlightState } : i));
+                                      } catch (err) { console.error(err); }
+                                    }}
+                                    editPaidInAdvance={editPaidInAdvance} setEditPaidInAdvance={setEditPaidInAdvance}
+                                    editTitle={editTitle} setEditTitle={setEditTitle}
+                                    editDate={editDate} setEditDate={setEditDate} 
+                                    editEndDate={editEndDate} setEditEndDate={setEditEndDate}
+                                    effectiveStartDate={effectiveStartDate} effectiveEndDate={effectiveEndDate}
+                                    editHour={editHour} setEditHour={setEditHour} 
+                                    editMinute={editMinute} setEditMinute={setEditMinute} 
+                                    editIsFlexible={editIsFlexible} setEditIsFlexible={setEditIsFlexible}
+                                    hours={hours} minutes={minutes}
+                                    editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
+                                    editCost={editCost} setEditCost={setEditCost}
+                                    editLocation={editLocation} setEditLocation={setEditLocation}
+                                    editDetails={editDetails} setEditDetails={setEditDetails}
+                                    isGuest={isGuest}
+                                    categoriesWithColors={categoriesWithColors}
+                                  />
+
+                                  {/* Travel Time Connector Strip */}
+                                  {showTransit && (
+                                    <div className="flex items-center gap-3 px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit">
+                                      {/* Vertical dotted connector lines */}
+                                      <div className="w-0.5 h-6 border-l-2 border-dotted border-slate-200 self-stretch -my-1.5 shrink-0" />
+                                      
+                                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-3 py-1 shadow-sm text-[11px] font-medium text-slate-500 transition">
+                                        {/* Dynamic Mode Selector Button */}
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const nextMode = preferredMode === 'DRIVE' ? 'WALK' : (preferredMode === 'WALK' ? 'TRANSIT' : 'DRIVE');
+                                            setTravelModes(prev => {
+                                              const updated = { ...prev, [segmentKey]: nextMode };
+                                              localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                              return updated;
+                                            });
+                                          }}
+                                          disabled={isGuest}
+                                          className="flex items-center gap-1.5 hover:text-blue-600 transition disabled:hover:text-slate-500 cursor-pointer disabled:cursor-default"
+                                          title="Change travel mode"
+                                        >
+                                          {preferredMode === 'DRIVE' ? <Car className="w-3.5 h-3.5" /> : (preferredMode === 'WALK' ? <Footprints className="w-3.5 h-3.5" /> : <Train className="w-3.5 h-3.5" />)}
+                                          <span className="capitalize">{preferredMode.toLowerCase()}</span>
+                                        </button>
+
+                                        <span className="text-slate-300">|</span>
+
+                                        {isLoading ? (
+                                          <span className="text-slate-400 animate-pulse">Calculating...</span>
+                                        ) : routeInfo ? (
+                                          <span>{routeInfo.duration} mins ({routeInfo.distance} km)</span>
+                                        ) : (
+                                          <span className="text-slate-400">Routes API pending...</span>
+                                        )}
+
+                                        {/* External link to Google Maps */}
+                                        <a 
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode.toLowerCase()}`}
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-slate-400 hover:text-blue-600 transition ml-1"
+                                          title="Open Directions in Google Maps"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })
                           )}
                           {provided.placeholder}
                         </div>
