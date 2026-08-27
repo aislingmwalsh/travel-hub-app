@@ -1,8 +1,8 @@
 // src/components/TripItinerary.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Calendar, Settings, Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink } from 'lucide-react';
+import { Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink, Calendar } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -119,7 +119,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const [loadingSegments, setLoadingSegments] = useState({});
 
-  const fetchRoute = async (origin, destination, mode, segmentKey) => {
+  const fetchRoute = useCallback(async (origin, destination, mode, segmentKey) => {
     if (!origin || !destination || !window.google?.maps) return;
     const cacheKey = `${origin.trim()}||${destination.trim()}||${mode}`;
     
@@ -130,14 +130,11 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setLoadingSegments(prev => ({ ...prev, [segmentKey]: true }));
 
     try {
-      const { Route, RouteTravelMode } = await window.google.maps.importLibrary("routes");
+      const { Route } = await window.google.maps.importLibrary("routes");
       
-      let sdkMode = mode;
-      if (RouteTravelMode) {
-        if (mode === 'WALK') sdkMode = RouteTravelMode.WALK;
-        else if (mode === 'TRANSIT') sdkMode = RouteTravelMode.TRANSIT;
-        else sdkMode = RouteTravelMode.DRIVE;
-      }
+      let sdkMode = 'DRIVING';
+      if (mode === 'WALK') sdkMode = 'WALKING';
+      else if (mode === 'TRANSIT') sdkMode = 'TRANSIT';
 
        const request = {
         origin: origin.trim(),
@@ -166,10 +163,21 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       }
     } catch (err) {
       console.error("Error computing route:", err);
+      const errorData = {
+        duration: 'N/A',
+        distance: 'N/A',
+        error: true,
+        errorMessage: err?.message || 'Permission denied or API disabled'
+      };
+      setTravelCache(prev => {
+        const updated = { ...prev, [cacheKey]: errorData };
+        localStorage.setItem('travelHubRouteCache', JSON.stringify(updated));
+        return updated;
+      });
     } finally {
       setLoadingSegments(prev => ({ ...prev, [segmentKey]: false }));
     }
-  };
+  }, [travelCache]);
 
   useEffect(() => {
     if (!window.google?.maps || itineraryItems.length === 0) return;
@@ -204,7 +212,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         }
       }
     });
-  }, [itineraryItems, travelModes, window.google?.maps]);
+  }, [itineraryItems, travelModes, window.google?.maps, fetchRoute, travelCache, loadingSegments]);
 
     useEffect(() => {
     async function fetchData() {
@@ -1052,14 +1060,18 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                         {isLoading ? (
                                           <span className="text-slate-400 animate-pulse">Calculating...</span>
                                         ) : routeInfo ? (
-                                          <span>{routeInfo.duration} mins ({routeInfo.distance} km)</span>
+                                          routeInfo.error ? (
+                                            <span className="text-red-500 font-semibold cursor-help" title={routeInfo.errorMessage}>Routes API restricted</span>
+                                          ) : (
+                                            <span>{routeInfo.duration} mins ({routeInfo.distance} km)</span>
+                                          )
                                         ) : (
                                           <span className="text-slate-400">Routes API pending...</span>
                                         )}
 
                                         {/* External link to Google Maps */}
                                         <a 
-                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode.toLowerCase()}`}
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode === 'DRIVE' ? 'driving' : (preferredMode === 'WALK' ? 'walking' : 'transit')}`}
                                           target="_blank" 
                                           rel="noopener noreferrer"
                                           className="text-slate-400 hover:text-blue-600 transition ml-1"
