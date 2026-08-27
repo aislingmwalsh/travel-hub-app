@@ -130,7 +130,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setLoadingSegments(prev => ({ ...prev, [segmentKey]: true }));
 
     try {
-      const routesLibrary = await window.google.maps.importLibrary("routes");
+      const { Route } = await window.google.maps.importLibrary("routes");
       const request = {
         origin: { address: origin.trim() },
         destination: { address: destination.trim() },
@@ -138,7 +138,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         fields: ['routes.duration', 'routes.distanceMeters']
       };
 
-      const response = await routesLibrary.computeRoutes(request);
+      const response = await Route.computeRoutes(request);
       
       if (response && response.routes && response.routes.length > 0) {
         const route = response.routes[0];
@@ -972,9 +972,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                             items.map((item, index) => {
                               const nextItem = items[index + 1];
                               const showTransit = nextItem && item.location && nextItem.location;
-                              const segmentKey = `${item.id}-${nextItem.id}`;
+                              const segmentKey = nextItem ? `${item.id}-${nextItem.id}` : '';
                               const preferredMode = travelModes[segmentKey] || 'DRIVE';
-                              const cacheKey = `${item.location?.trim()}||${nextItem?.location?.trim()}||${preferredMode}`;
+                              const cacheKey = nextItem ? `${item.location?.trim()}||${nextItem.location?.trim()}||${preferredMode}` : '';
                               const routeInfo = travelCache[cacheKey];
                               const isLoading = loadingSegments[segmentKey];
 
