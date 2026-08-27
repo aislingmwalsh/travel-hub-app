@@ -2,6 +2,12 @@
 import React from 'react';
 import { Clock, Calendar, MapPin, DollarSign, FileText, Plus } from 'lucide-react';
 
+const isTransitCategory = (cat) => {
+  if (!cat) return false;
+  const name = String(cat).toLowerCase();
+  return name.includes('flight') || name.includes('train') || name.includes('drive') || name.includes('transport');
+};
+
 export default function ItineraryForm({
   title, setTitle,
   selectedDate, setSelectedDate,
@@ -13,9 +19,12 @@ export default function ItineraryForm({
   cost, setCost, currency,
   location, setLocation, handleLocationChange,
   showPredictions, predictions, handleSelectPrediction,
+  destination, setDestination, handleDestLocationChange,
+  showDestPredictions, destPredictions, handleSelectDestPrediction,
+  arrivalHour, setArrivalHour, arrivalMinute, setArrivalMinute,
   details, setDetails,
   paidInAdvance, setPaidInAdvance,
-  loading, dropdownRef,
+  loading, dropdownRef, destDropdownRef,
   onAddItem
 }) {
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -103,7 +112,9 @@ export default function ItineraryForm({
         </div>
 
         <div className="md:col-span-3 relative" ref={dropdownRef}>
-          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location / Address *</label>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+            {isTransitCategory(category) ? 'From (Origin Location) *' : 'Location / Address *'}
+          </label>
           <input 
             type="text" 
             placeholder="Search address or landmark..." 
@@ -126,6 +137,67 @@ export default function ItineraryForm({
             </div>
           )}
         </div>
+
+        {isTransitCategory(category) && (
+          <div className="md:col-span-3 relative" ref={destDropdownRef}>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">To (Destination Location) *</label>
+            <input 
+              type="text" 
+              placeholder="Search destination address or landmark..." 
+              value={destination} 
+              onChange={handleDestLocationChange} 
+              required 
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" 
+            />
+            {showDestPredictions && destPredictions.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                {destPredictions.map(pred => (
+                  <div 
+                    key={pred.place_id} 
+                    onClick={() => handleSelectDestPrediction(pred)}
+                    className="px-3 py-2 text-xs hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 truncate"
+                  >
+                    {pred.description}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isTransitCategory(category) && (
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="block text-[11px] font-bold text-slate-500 uppercase">Arrival Time (Optional)</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={arrivalHour}
+                onChange={(e) => setArrivalHour(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+              >
+                <option value="">--</option>
+                {hours.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+              <span className="text-slate-400 font-bold">:</span>
+              <select
+                value={arrivalMinute}
+                onChange={(e) => setArrivalMinute(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer"
+                disabled={!arrivalHour}
+              >
+                {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              {arrivalHour && (
+                <button
+                  type="button"
+                  onClick={() => { setArrivalHour(''); setArrivalMinute('00'); }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label>

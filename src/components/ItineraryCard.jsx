@@ -1,8 +1,14 @@
 // src/components/ItineraryCard.jsx
 import React from 'react';
-import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star } from 'lucide-react';
+import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star, Luggage } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 import { getCurrencySymbol } from '../utils/currencyUtils';
+
+const isTransitCategory = (cat) => {
+  if (!cat) return false;
+  const name = String(cat).toLowerCase();
+  return name.includes('flight') || name.includes('train') || name.includes('drive') || name.includes('transport');
+};
 
 const COLOR_MAP = {
   rose: 'bg-rose-50 text-rose-700 border-rose-100',
@@ -39,15 +45,20 @@ export default function ItineraryCard({
   editCost, setEditCost,
   editLocation, setEditLocation,
   editDetails, setEditDetails,
+  editDestination, setEditDestination,
+  editArrivalHour, setEditArrivalHour, editArrivalMinute, setEditArrivalMinute,
   isGuest,
   categoriesWithColors = []
 }) {
   // Dynamically find color chosen from the global configuration
+  const isLuggageDrop = item.category === 'Luggage Drop';
   const matchingCat = categoriesWithColors.find(c => c.name === item.category);
-  const badgeColorKey = matchingCat ? matchingCat.color : 'slate';
+  const badgeColorKey = isLuggageDrop ? 'sky' : (matchingCat ? matchingCat.color : 'slate');
   const badgeClass = COLOR_MAP[badgeColorKey] || COLOR_MAP.slate;
 
-  const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
+  const mapsSearchUrl = item.destination
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(item.destination)}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
 
   const currencySymbol = getCurrencySymbol(currency);
 
@@ -59,12 +70,18 @@ export default function ItineraryCard({
           {...provided.draggableProps}
           style={provided.draggableProps.style}
           onClick={() => { if (!isEditing && !isExpanded) onToggleExpand(); }}
-          className={`bg-white rounded-xl border transition overflow-hidden flex ${
+          className={`rounded-xl border transition overflow-hidden flex ${
             isEditing ? 'cursor-default ring-2 ring-blue-400' : 'cursor-pointer'
           } ${
-            item.highlighted 
-              ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/20' 
-              : 'border-slate-100 shadow-sm hover:shadow-md'
+            isLuggageDrop
+              ? 'bg-sky-50/50 border-sky-100 shadow-xs hover:shadow-sm'
+              : item.type === 'checkin'
+                ? 'bg-white border-emerald-300 shadow-sm hover:shadow-md'
+                : item.type === 'checkout'
+                  ? 'bg-white border-rose-200 shadow-sm hover:shadow-md'
+                  : item.highlighted 
+                    ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/20 bg-white' 
+                    : 'bg-white border-slate-100 shadow-sm hover:shadow-md'
           } ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl bg-blue-50/20' : ''}`}
         >
           {/* Drag Handle Column on Left */}
@@ -89,7 +106,15 @@ export default function ItineraryCard({
                   <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
                     <Clock className="w-3 h-3 text-blue-600" />{item.time}
                   </span>
-                  <h5 className="font-semibold text-slate-900 text-base break-words">{item.title}</h5>
+                  {item.arrivalTime && (
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                      <Clock className="w-3 h-3 text-teal-500" />arr. {item.arrivalTime}
+                    </span>
+                  )}
+                  <h5 className="font-semibold text-slate-900 text-base break-words flex items-center gap-1.5">
+                    {isLuggageDrop && <Luggage className="w-4 h-4 text-sky-600 shrink-0" />}
+                    {item.title}
+                  </h5>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
                   {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currencySymbol} {Number(item.cost).toFixed(2)}</span>}
                   {item.paidInAdvance && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">Paid ✅</span>}
@@ -98,9 +123,15 @@ export default function ItineraryCard({
 
                 {/* Location */}
                 {item.location && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1 flex-wrap">
                     <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                    <span className="break-words">{item.location}</span>
+                    {item.destination ? (
+                      <span className="break-words font-medium">
+                        {item.location} <span className="text-slate-400 mx-1">➔</span> {item.destination}
+                      </span>
+                    ) : (
+                      <span className="break-words">{item.location}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -162,7 +193,21 @@ export default function ItineraryCard({
                       <div className="md:col-span-2"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Title</label><input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                       <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" min={effectiveStartDate} max={effectiveEndDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                       <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Time</label><div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-sm"><select value={editHour} onChange={(e) => setEditHour(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{hours.map(h => <option key={h} value={h}>{h}</option>)}</select><span>:</span><select value={editMinute} onChange={(e) => setEditMinute(e.target.value)} className="bg-transparent focus:outline-none cursor-pointer">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>
-                      <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label><select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer">{sortedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Type</label>
+                        <select 
+                          value={editCategory} 
+                          onChange={(e) => setEditCategory(e.target.value)} 
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer"
+                        >
+                          {editCategory === 'Luggage Drop' && (
+                            <option value="Luggage Drop">Luggage Drop 🧳</option>
+                          )}
+                          {sortedCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cost ({currency})</label><input type="number" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
                       <div className="md:col-span-3 flex items-center gap-3">
                         <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer" onClick={(e) => e.stopPropagation()}>
@@ -176,7 +221,36 @@ export default function ItineraryCard({
                           Paid in advance
                         </label>
                       </div>
-                      <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Location</label><input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" /></div>
+                      <div className="md:col-span-3">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                          {isTransitCategory(editCategory) ? 'From (Origin Location) *' : 'Location'}
+                        </label>
+                        <input type="text" value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+                      </div>
+                      {isTransitCategory(editCategory) && (
+                        <div className="md:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">To (Destination Location) *</label>
+                          <input type="text" value={editDestination} onChange={(e) => setEditDestination(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+                        </div>
+                      )}
+                      {isTransitCategory(editCategory) && (
+                        <div className="md:col-span-3 space-y-1.5">
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase">Arrival Time (Optional)</label>
+                          <div className="flex items-center gap-2">
+                            <select value={editArrivalHour} onChange={(e) => setEditArrivalHour(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer">
+                              <option value="">--</option>
+                              {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            <span className="text-slate-400 font-bold">:</span>
+                            <select value={editArrivalMinute} onChange={(e) => setEditArrivalMinute(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm cursor-pointer" disabled={!editArrivalHour}>
+                              {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            {editArrivalHour && (
+                              <button type="button" onClick={() => { setEditArrivalHour(''); setEditArrivalMinute('00'); }} className="text-xs text-slate-400 hover:text-red-500 transition cursor-pointer">Clear</button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="md:col-span-3"><label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Details & Notes</label><textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={2} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none" /></div>
                     </div>
                     <div className="flex justify-end pt-2"><button type="button" onClick={() => onSaveEdit(editPaidInAdvance)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"><Save className="w-3.5 h-3.5" /> Save Changes</button></div>
@@ -190,7 +264,23 @@ export default function ItineraryCard({
                     <div className="space-y-2 flex flex-col">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider"><MapPin className="w-3.5 h-3.5 text-teal-500" />Location & Map</div>
                       <a href={mapsSearchUrl} target="_blank" rel="noopener noreferrer" className="flex-grow bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl p-4 transition flex flex-col justify-between group shadow-sm">
-                        <div><p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">{item.location}</p><p className="text-[11px] text-slate-400">Click to open directions</p></div>
+                        <div>
+                          {item.destination ? (
+                            <div className="space-y-2 mb-2">
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Origin</p>
+                                <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 line-clamp-2">{item.location}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Destination</p>
+                                <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 line-clamp-2">{item.destination}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs font-bold text-slate-900 group-hover:text-teal-700 mb-1 line-clamp-2">{item.location}</p>
+                          )}
+                          <p className="text-[11px] text-slate-400">Click to open directions</p>
+                        </div>
                         <div className="mt-4 flex items-center gap-1 text-xs font-bold text-teal-600 group-hover:underline"><span>Open in Google Maps</span><ExternalLink className="w-3.5 h-3.5" /></div>
                       </a>
                     </div>

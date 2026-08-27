@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink, Calendar } from 'lucide-react';
+import { Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink, Calendar, Hotel } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 
 import ItineraryForm from './ItineraryForm';
@@ -12,10 +12,59 @@ import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
+const BANNER_COLOR_MAP = {
+  rose: { bg: 'bg-rose-50/50 border-rose-100', dot: 'bg-rose-500', text: 'text-rose-800' },
+  pink: { bg: 'bg-pink-50/50 border-pink-100', dot: 'bg-pink-500', text: 'text-pink-800' },
+  fuchsia: { bg: 'bg-fuchsia-50/50 border-fuchsia-100', dot: 'bg-fuchsia-500', text: 'text-fuchsia-800' },
+  purple: { bg: 'bg-purple-50/50 border-purple-100', dot: 'bg-purple-500', text: 'text-purple-800' },
+  violet: { bg: 'bg-violet-50/50 border-violet-100', dot: 'bg-violet-500', text: 'text-violet-800' },
+  indigo: { bg: 'bg-indigo-50/50 border-indigo-100', dot: 'bg-indigo-500', text: 'text-indigo-800' },
+  blue: { bg: 'bg-blue-50/50 border-blue-100', dot: 'bg-blue-500', text: 'text-blue-800' },
+  sky: { bg: 'bg-sky-50/50 border-sky-100', dot: 'bg-sky-500', text: 'text-sky-800' },
+  cyan: { bg: 'bg-cyan-50/50 border-cyan-100', dot: 'bg-cyan-500', text: 'text-cyan-800' },
+  teal: { bg: 'bg-teal-50/50 border-teal-100', dot: 'bg-teal-500', text: 'text-teal-800' },
+  emerald: { bg: 'bg-emerald-50/50 border-emerald-100', dot: 'bg-emerald-500', text: 'text-emerald-800' },
+  green: { bg: 'bg-green-50/50 border-green-100', dot: 'bg-green-500', text: 'text-green-800' },
+  lime: { bg: 'bg-lime-50/50 border-lime-100', dot: 'bg-lime-500', text: 'text-lime-800' },
+  yellow: { bg: 'bg-yellow-50/50 border-yellow-100', dot: 'bg-yellow-500', text: 'text-yellow-800' },
+  amber: { bg: 'bg-amber-50/50 border-amber-100', dot: 'bg-amber-500', text: 'text-amber-800' },
+  orange: { bg: 'bg-orange-50/50 border-orange-100', dot: 'bg-orange-500', text: 'text-orange-800' },
+  red: { bg: 'bg-red-50/50 border-red-100', dot: 'bg-red-500', text: 'text-red-800' },
+  stone: { bg: 'bg-stone-50/50 border-stone-100', dot: 'bg-stone-500', text: 'text-stone-800' },
+  slate: { bg: 'bg-slate-50/50 border-slate-200/60', dot: 'bg-slate-500', text: 'text-slate-800' }
+};
+
 function isAccommodation(cat) {
   if (!cat) return false;
   const normalized = String(cat).trim().toLowerCase();
   return normalized.includes('accommodation');
+}
+
+function compareItineraryItems(a, b) {
+  if (a.highlighted && !b.highlighted) return -1;
+  if (!a.highlighted && b.highlighted) return 1;
+  if (a.time === 'Flexible' && b.time !== 'Flexible') return -1;
+  if (a.time !== 'Flexible' && b.time === 'Flexible') return 1;
+  
+  const timeCompare = a.time.localeCompare(b.time);
+  if (timeCompare !== 0) return timeCompare;
+  
+  const catA = String(a.category || '').toLowerCase();
+  const catB = String(b.category || '').toLowerCase();
+  
+  const isTransitA = catA.includes('flight') || catA.includes('train') || catA.includes('drive') || catA.includes('transport');
+  const isTransitB = catB.includes('flight') || catB.includes('train') || catB.includes('drive') || catB.includes('transport');
+  
+  const isLuggageA = a.category === 'Luggage Drop';
+  const isLuggageB = b.category === 'Luggage Drop';
+  
+  if (isTransitA && !isTransitB) return -1;
+  if (!isTransitA && isTransitB) return 1;
+  
+  if (isLuggageA && !isLuggageB) return isTransitB ? 1 : -1;
+  if (!isLuggageA && isLuggageB) return isTransitA ? -1 : 1;
+  
+  return 0;
 }
 
 function normalizeDate(dateInput) {
@@ -78,6 +127,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
   const effectiveStartDate = normalizeDate(tripStartDate) || new Date().toISOString().split('T')[0];
   const effectiveEndDate = normalizeDate(tripEndDate) || effectiveStartDate;
+  const rawSortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
 
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [editingCardId, setEditingCardId] = useState(null);
@@ -97,6 +147,24 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const [showPredictions, setShowPredictions] = useState(false);
   const autocompleteServiceRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  const [destination, setDestination] = useState('');
+  const [destPredictions, setDestPredictions] = useState([]);
+  const [showDestPredictions, setShowDestPredictions] = useState(false);
+  const destDropdownRef = useRef(null);
+
+  const [editDestination, setEditDestination] = useState('');
+
+  // Arrival time for transit activities (add form)
+  const [arrivalHour, setArrivalHour] = useState('');
+  const [arrivalMinute, setArrivalMinute] = useState('00');
+
+  // Arrival time for transit activities (edit form)
+  const [editArrivalHour, setEditArrivalHour] = useState('');
+  const [editArrivalMinute, setEditArrivalMinute] = useState('00');
+
+  // Track dismissed/accepted early arrival luggage suggestions (by transit item ID)
+  const [dismissedLuggageSuggestions, setDismissedLuggageSuggestions] = useState(new Set());
 
   // Suggested travel time states
   const [travelCache, setTravelCache] = useState(() => {
@@ -191,33 +259,99 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       }
     });
 
-    Object.keys(grouped).forEach(dateStr => {
-      const sorted = [...grouped[dateStr]].sort((a, b) => {
+    rawSortedDates.forEach(dateStr => {
+      const standardItems = grouped[dateStr] || [];
+
+      // Generate check-ins and check-outs
+      const checkInVirtualItems = itineraryItems
+        .filter(i => isAccommodation(i.category) && i.date === dateStr)
+        .map(acc => ({
+          id: `${acc.id}-checkin`,
+          parentId: acc.id,
+          title: `Check-in: ${acc.title}`,
+          date: acc.date,
+          time: acc.checkInTime || '15:00',
+          location: acc.location,
+          category: acc.category,
+          type: 'checkin',
+          isVirtual: true,
+          rawItem: acc
+        }));
+
+      const checkOutVirtualItems = itineraryItems
+        .filter(i => isAccommodation(i.category) && i.endDate === dateStr)
+        .map(acc => ({
+          id: `${acc.id}-checkout`,
+          parentId: acc.id,
+          title: `Check-out: ${acc.title}`,
+          date: acc.endDate,
+          time: acc.checkOutTime || '11:00',
+          location: acc.location,
+          category: acc.category,
+          type: 'checkout',
+          isVirtual: true,
+          rawItem: acc
+        }));
+
+      // Merge and sort chronologically
+      const sorted = [...checkOutVirtualItems, ...standardItems, ...checkInVirtualItems];
+      sorted.sort((a, b) => {
         if (a.time === 'Flexible') return 1;
         if (b.time === 'Flexible') return -1;
         return a.time.localeCompare(b.time);
       });
 
+      // Prefetch route from active accommodation to first activity on staying-at days
+      const intermediateAccommodations = itineraryItems.filter(i => 
+        isAccommodation(i.category) && 
+        i.date && 
+        i.date < dateStr && 
+        i.endDate > dateStr
+      );
+
+      if (intermediateAccommodations.length > 0 && sorted.length > 0) {
+        const firstItem = sorted[0];
+        const startLoc = intermediateAccommodations[0].location;
+        const endLoc = firstItem.location;
+        if (startLoc && endLoc && startLoc.trim() !== endLoc.trim()) {
+          const segmentKey = `${intermediateAccommodations[0].id}-${firstItem.id}-hotelstart`;
+          const modes = ['DRIVE', 'WALK', 'TRANSIT'];
+          modes.forEach(mode => {
+            const cacheKey = `${startLoc.trim()}||${endLoc.trim()}||${mode}`;
+            const loadingKey = `${segmentKey}-${mode}`;
+            if (!travelCache[cacheKey] && !loadingSegments[loadingKey]) {
+              fetchRoute(startLoc, endLoc, mode, segmentKey);
+            }
+          });
+        }
+      }
+
       for (let i = 0; i < sorted.length - 1; i++) {
         const itemA = sorted[i];
         const itemB = sorted[i + 1];
         
-        if (itemA.location && itemB.location) {
+        // Resolve start and end locations for transit routing
+        const catA = itemA.category?.toLowerCase() || '';
+        const isTransitA = catA.includes('flight') || catA.includes('train') || catA.includes('drive') || catA.includes('transport');
+        const startLoc = (isTransitA && itemA.destination) ? itemA.destination : itemA.location;
+        const endLoc = itemB.location;
+
+        if (startLoc && endLoc) {
           const segmentKey = `${itemA.id}-${itemB.id}`;
           const modes = ['DRIVE', 'WALK', 'TRANSIT'];
           
           modes.forEach(mode => {
-            const cacheKey = `${itemA.location.trim()}||${itemB.location.trim()}||${mode}`;
+            const cacheKey = `${startLoc.trim()}||${endLoc.trim()}||${mode}`;
             const loadingKey = `${segmentKey}-${mode}`;
             
             if (!travelCache[cacheKey] && !loadingSegments[loadingKey]) {
-              fetchRoute(itemA.location, itemB.location, mode, segmentKey);
+              fetchRoute(startLoc, endLoc, mode, segmentKey);
             }
           });
+        }
       }
-    }
-  });
-  }, [itineraryItems, travelModes, window.google?.maps, fetchRoute, travelCache, loadingSegments]);
+    });
+  }, [itineraryItems, travelModes, window.google?.maps, fetchRoute, travelCache, loadingSegments, rawSortedDates]);
 
     useEffect(() => {
     async function fetchData() {
@@ -280,10 +414,36 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowPredictions(false);
+      if (destDropdownRef.current && !destDropdownRef.current.contains(e.target)) setShowDestPredictions(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleDestLocationChange = (e) => {
+    const value = e.target.value;
+    setDestination(value);
+    if (!value.trim() || !autocompleteServiceRef.current) {
+      setDestPredictions([]);
+      setShowDestPredictions(false);
+      return;
+    }
+    autocompleteServiceRef.current.getPlacePredictions({ input: value }, (results, status) => {
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+        setDestPredictions(results);
+        setShowDestPredictions(true);
+      } else {
+        setDestPredictions([]);
+        setShowDestPredictions(false);
+      }
+    });
+  };
+
+  const handleSelectDestPrediction = (prediction) => {
+    setDestination(prediction.description);
+    setDestPredictions([]);
+    setShowDestPredictions(false);
+  };
 
   const handleLocationChange = (e) => {
     const value = e.target.value;
@@ -317,13 +477,17 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
     setLoading(true);
         try {
+      const catL = category?.toLowerCase() || '';
+      const isTransit = catL.includes('flight') || catL.includes('train') || catL.includes('drive') || catL.includes('transport');
       const newItem = {
         title,
         time: isFlexibleTime ? 'Flexible' : `${selectedHour}:${selectedMinute}`,
+        arrivalTime: (isTransit && arrivalHour) ? `${arrivalHour}:${arrivalMinute}` : null,
         date: selectedDate ? selectedDate : null,
         endDate: isAccommodation(category) && endDate ? endDate : (isAccommodation(category) ? selectedDate : null),
         category,
         location: location.trim(),
+        destination: isTransit ? destination.trim() : null,
         details: details.trim(),
         cost: cost ? parseFloat(cost) : 0,
         paidInAdvance: Boolean(paidInAdvance),
@@ -335,6 +499,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             // Reset form fields
       setTitle('');
       setLocation('');
+      setDestination('');
       setDetails('');
       setCost('');
       setPaidInAdvance(false);
@@ -343,6 +508,8 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setIsFlexibleTime(false);
       setSelectedHour('09');
       setSelectedMinute('00');
+      setArrivalHour('');
+      setArrivalMinute('00');
       // Reset category to first item in sorted list
       if (sortedCategories.length > 0) {
         setCategory(sortedCategories[0]);
@@ -359,8 +526,9 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (e) e.stopPropagation();
     if (isGuest) return;
     try {
-      await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
-      setItineraryItems(prev => prev.filter(i => i.id !== itemId));
+      const docId = itemId.endsWith('-checkin') ? itemId.replace('-checkin', '') : (itemId.endsWith('-checkout') ? itemId.replace('-checkout', '') : itemId);
+      await deleteDoc(doc(db, "trips", tripId, "itinerary", docId));
+      setItineraryItems(prev => prev.filter(i => i.id !== docId));
     } catch (err) {
       console.error("Error deleting item:", err);
     }
@@ -371,9 +539,10 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     if (isGuest) return;
     setEditingCardId(item.id);
     setExpandedCardId(item.id);
-    setEditTitle(item.title);
-    setEditDate(item.date || '');
-    setEditEndDate(item.endDate || item.date || '');
+    const raw = item.isVirtual ? item.rawItem : item;
+    setEditTitle(raw.title);
+    setEditDate(raw.date || '');
+    setEditEndDate(raw.endDate || raw.date || '');
     if (item.time === 'Flexible') {
       setEditIsFlexible(true);
       setEditHour('09');
@@ -384,22 +553,34 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       setEditHour(h || '09');
       setEditMinute(m || '00');
     }
-    setEditCategory(item.category || 'Tour');
-    setEditLocation(item.location || '');
-    setEditDetails(item.details || '');
-    setEditCost(item.cost ? item.cost.toString() : '');
-    setEditPaidInAdvance(Boolean(item.paidInAdvance));
+    setEditCategory(raw.category || 'Accommodation');
+    setEditLocation(raw.location || '');
+    setEditDestination(raw.destination || '');
+    if (raw.arrivalTime) {
+      const [ah, am] = raw.arrivalTime.split(':');
+      setEditArrivalHour(ah || '');
+      setEditArrivalMinute(am || '00');
+    } else {
+      setEditArrivalHour('');
+      setEditArrivalMinute('00');
+    }
+    setEditDetails(raw.details || '');
+    setEditCost(raw.cost ? raw.cost.toString() : '');
+    setEditPaidInAdvance(Boolean(raw.paidInAdvance));
   };
 
   const handleSaveEdit = async (itemId, paidFlag) => {
     if (isGuest) return;
     if (!editTitle.trim()) return;
 
-        const updatedFields = {
+    const isVirtual = itemId.endsWith('-checkin') || itemId.endsWith('-checkout');
+    const parentId = itemId.endsWith('-checkin') ? itemId.replace('-checkin', '') : (itemId.endsWith('-checkout') ? itemId.replace('-checkout', '') : itemId);
+    const isCheckin = itemId.endsWith('-checkin');
+
+    const updatedFields = {
       title: editTitle.trim(),
       date: editDate ? editDate : null,
       endDate: isAccommodation(editCategory) && editEndDate ? editEndDate : (isAccommodation(editCategory) ? editDate : null),
-      time: editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`,
       category: editCategory,
       location: editLocation.trim(),
       details: editDetails.trim(),
@@ -407,9 +588,24 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
       paidInAdvance: Boolean(paidFlag)
     };
 
+    if (isVirtual) {
+      if (isCheckin) {
+        updatedFields.checkInTime = editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`;
+      } else {
+        updatedFields.checkOutTime = editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`;
+      }
+    } else {
+      const editCatL = editCategory?.toLowerCase() || '';
+      const isTransit = editCatL.includes('flight') || editCatL.includes('train') || editCatL.includes('drive') || editCatL.includes('transport');
+      updatedFields.time = editIsFlexible ? 'Flexible' : `${editHour}:${editMinute}`;
+      updatedFields.destination = isTransit ? editDestination.trim() : null;
+      updatedFields.arrivalTime = (isTransit && editArrivalHour) ? `${editArrivalHour}:${editArrivalMinute}` : null;
+    }
+
     try {
-      await updateDoc(doc(db, "trips", tripId, "itinerary", itemId), updatedFields);
-      setItineraryItems(prev => prev.map(i => i.id === itemId ? { ...i, ...updatedFields } : i));
+      await updateDoc(doc(db, "trips", tripId, "itinerary", parentId), updatedFields);
+      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("createdAt", "asc")));
+      setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setEditingCardId(null);
       setEditPaidInAdvance(false);
     } catch (err) {
@@ -422,13 +618,29 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     const { destination, source, draggableId } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
+    const isVirtual = draggableId.endsWith('-checkin') || draggableId.endsWith('-checkout');
+    const docId = draggableId.endsWith('-checkin') ? draggableId.replace('-checkin', '') : (draggableId.endsWith('-checkout') ? draggableId.replace('-checkout', '') : draggableId);
+    const isCheckin = draggableId.endsWith('-checkin');
+
     const newDate = destination.droppableId === 'unscheduled' ? null : destination.droppableId;
     
-    setItineraryItems(prev => prev.map(i => i.id === draggableId ? { ...i, date: newDate } : i));
+    let updatedField = { date: newDate };
+    if (isVirtual) {
+      if (isCheckin) {
+        updatedField = { date: newDate };
+      } else {
+        updatedField = { endDate: newDate };
+      }
+    }
+
+    setItineraryItems(prev => prev.map(i => i.id === docId ? { ...i, ...updatedField } : i));
 
     try {
-      const itemRef = doc(db, "trips", tripId, "itinerary", draggableId);
-      await updateDoc(itemRef, { date: newDate });
+      const itemRef = doc(db, "trips", tripId, "itinerary", docId);
+      await updateDoc(itemRef, updatedField);
+      // Force reload to update check-in/check-out cards layout properly
+      const snap = await getDocs(query(collection(db, "trips", tripId, "itinerary"), orderBy("createdAt", "asc")));
+      setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error("Error updating item date in Firestore:", err);
       alert("Failed to save schedule change.");
@@ -438,7 +650,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   };
 
     const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
-  const rawSortedDates = getTripDateRange(effectiveStartDate, effectiveEndDate);
   
   // Sort dates conditionally: Today first, future next, past at the very end
   const todayStr = new Date().toISOString().split('T')[0];
@@ -471,13 +682,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   }, {});
 
   Object.keys(groupedItems).forEach(d => {
-    groupedItems[d].sort((a, b) => {
-      if (a.highlighted && !b.highlighted) return -1;
-      if (!a.highlighted && b.highlighted) return 1;
-      if (a.time === 'Flexible' && b.time !== 'Flexible') return -1;
-      if (a.time !== 'Flexible' && b.time === 'Flexible') return 1;
-      return a.time.localeCompare(b.time);
-    });
+    groupedItems[d].sort(compareItineraryItems);
   });
 
   const grandTotalCost = itineraryItems.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
@@ -518,9 +723,12 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
             cost={cost} setCost={setCost} currency={currency}
             location={location} setLocation={setLocation} handleLocationChange={handleLocationChange}
             showPredictions={showPredictions} predictions={predictions} handleSelectPrediction={handleSelectPrediction}
+            destination={destination} setDestination={setDestination} handleDestLocationChange={handleDestLocationChange}
+            showDestPredictions={showDestPredictions} destPredictions={destPredictions} handleSelectDestPrediction={handleSelectDestPrediction}
+            arrivalHour={arrivalHour} setArrivalHour={setArrivalHour} arrivalMinute={arrivalMinute} setArrivalMinute={setArrivalMinute}
             details={details} setDetails={setDetails}
             paidInAdvance={paidInAdvance} setPaidInAdvance={setPaidInAdvance}
-            loading={loading} dropdownRef={dropdownRef}
+            loading={loading} dropdownRef={dropdownRef} destDropdownRef={destDropdownRef}
             onAddItem={handleAddItem}
           />
           {isAccommodation(category) && (
@@ -700,6 +908,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
                               editCost={editCost} setEditCost={setEditCost}
                               editLocation={editLocation} setEditLocation={setEditLocation}
+                              editDestination={editDestination} setEditDestination={setEditDestination}
                               editDetails={editDetails} setEditDetails={setEditDetails}
                               isGuest={isGuest}
                               categoriesWithColors={categoriesWithColors}
@@ -717,17 +926,58 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
                     {/* 📅 DAILY ITINERARY FEED */}
           {sortedDates.map(dateStr => {
-            const items = groupedItems[dateStr] || [];
-            
-            const activeAccommodations = itineraryItems.filter(i => 
+            const standardItems = groupedItems[dateStr] || [];
+
+            // Generate virtual check-ins and check-outs for this day
+            const checkInVirtualItems = itineraryItems
+              .filter(i => isAccommodation(i.category) && i.category !== 'Luggage Drop' && !i.title?.toLowerCase().includes('drop luggage') && i.date === dateStr)
+              .map(acc => ({
+                id: `${acc.id}-checkin`,
+                parentId: acc.id,
+                title: `Check-in: ${acc.title}`,
+                date: acc.date,
+                time: acc.checkInTime || '15:00',
+                location: acc.location,
+                category: acc.category,
+                type: 'checkin',
+                cost: acc.cost,
+                paidInAdvance: acc.paidInAdvance,
+                details: acc.details || '',
+                highlighted: acc.highlighted || false,
+                isVirtual: true,
+                rawItem: acc
+              }));
+
+            const checkOutVirtualItems = itineraryItems
+              .filter(i => isAccommodation(i.category) && i.category !== 'Luggage Drop' && !i.title?.toLowerCase().includes('drop luggage') && i.endDate === dateStr)
+              .map(acc => ({
+                id: `${acc.id}-checkout`,
+                parentId: acc.id,
+                title: `Check-out: ${acc.title}`,
+                date: acc.endDate,
+                time: acc.checkOutTime || '11:00',
+                location: acc.location,
+                category: acc.category,
+                type: 'checkout',
+                details: acc.details || '',
+                highlighted: acc.highlighted || false,
+                isVirtual: true,
+                rawItem: acc
+              }));
+
+            // Find intermediate accommodations (stay is active, but today is neither checkin nor checkout day)
+            const intermediateAccommodations = itineraryItems.filter(i => 
               isAccommodation(i.category) && 
               i.date && 
-              i.date <= dateStr && 
-              (i.endDate >= dateStr || !i.endDate)
+              i.date < dateStr && 
+              i.endDate > dateStr
             );
 
-                        const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-            
+            // Merge and sort chronologically
+            const items = [...checkOutVirtualItems, ...standardItems, ...checkInVirtualItems];
+            items.sort(compareItineraryItems);
+
+            const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
             return (
@@ -741,245 +991,32 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                   </div>
                   <div className="flex items-center gap-2">
                     {dayTotal > 0 && <span className="text-[10px] sm:text-xs font-bold text-slate-600 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-slate-200 shadow-sm">{currencySymbol}{dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && activeAccommodations.length === 0 && <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                    {items.length === 0 && intermediateAccommodations.length === 0 && <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
                   </div>
                 </div>
 
                 <div className="py-3 px-0 sm:p-4 space-y-4">
-                    
-                                        {/* 🏨 ACCOMMODATION BANNERS WITH INLINE EDIT & DELETE */}
-                    {activeAccommodations.length > 0 && (
-                      <div className="space-y-2">
-                        {activeAccommodations.map(acc => {
-                          const isCheckIn = acc.date === dateStr;
-                          const isCheckOut = acc.endDate === dateStr;
-                          const badgeLabel = isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : 'Accommodation');
-                          const isEditingThisHotel = editingCardId === acc.id;
+                  {/* intermediate accommodations banner */}
+                  {intermediateAccommodations.length > 0 && (
+                    <div className="space-y-1.5 mb-3">
+                      {intermediateAccommodations.map(acc => {
+                        const matchedCat = categoriesWithColors.find(c => c.name === acc.category);
+                        const colorKey = matchedCat ? matchedCat.color : 'slate';
+                        const theme = BANNER_COLOR_MAP[colorKey] || BANNER_COLOR_MAP.slate;
 
-                          // Find dynamic category color chosen in configuration
-                          const matchedCat = categoriesWithColors.find(c => c.name === acc.category);
-                          const dynamicColor = matchedCat ? matchedCat.color : 'amber'; // Fallback to amber if not found
-
-                          // Class maps for dynamically configuring card elements based on custom category color
-                          const COLOR_BG_BORDER_MAP = {
-                            rose: 'bg-white border border-rose-200',
-                            pink: 'bg-white border border-pink-200',
-                            fuchsia: 'bg-white border border-fuchsia-200',
-                            purple: 'bg-white border border-purple-200',
-                            violet: 'bg-white border border-violet-200',
-                            indigo: 'bg-white border border-indigo-200',
-                            blue: 'bg-white border border-blue-200',
-                            sky: 'bg-white border border-sky-200',
-                            cyan: 'bg-white border border-cyan-200',
-                            teal: 'bg-white border border-teal-200',
-                            emerald: 'bg-white border border-emerald-200',
-                            green: 'bg-white border border-green-200',
-                            lime: 'bg-white border border-lime-200',
-                            yellow: 'bg-white border border-yellow-200',
-                            amber: 'bg-white border border-amber-200',
-                            orange: 'bg-white border border-orange-200',
-                            red: 'bg-white border border-red-200',
-                            stone: 'bg-white border border-stone-200',
-                            slate: 'bg-white border border-slate-200'
-                          };
-
-                          const COLOR_BADGE_MAP = {
-                            rose: 'bg-rose-50 text-rose-700',
-                            pink: 'bg-pink-50 text-pink-700',
-                            fuchsia: 'bg-fuchsia-50 text-fuchsia-700',
-                            purple: 'bg-purple-50 text-purple-700',
-                            violet: 'bg-violet-50 text-violet-700',
-                            indigo: 'bg-indigo-50 text-indigo-700',
-                            blue: 'bg-blue-50 text-blue-700',
-                            sky: 'bg-sky-50 text-sky-700',
-                            cyan: 'bg-cyan-50 text-cyan-700',
-                            teal: 'bg-teal-50 text-teal-700',
-                            emerald: 'bg-emerald-50 text-emerald-700',
-                            green: 'bg-green-50 text-green-700',
-                            lime: 'bg-lime-50 text-lime-700',
-                            yellow: 'bg-yellow-50 text-yellow-700',
-                            amber: 'bg-amber-50 text-amber-700',
-                            orange: 'bg-orange-50 text-orange-700',
-                            red: 'bg-red-50 text-red-700',
-                            stone: 'bg-stone-50 text-stone-700',
-                            slate: 'bg-slate-100 text-slate-700'
-                          };
-
-                          const COLOR_ICON_MAP = {
-                            rose: 'bg-rose-50 text-rose-600',
-                            pink: 'bg-pink-50 text-pink-600',
-                            fuchsia: 'bg-fuchsia-50 text-fuchsia-600',
-                            purple: 'bg-purple-50 text-purple-600',
-                            violet: 'bg-violet-50 text-violet-600',
-                            indigo: 'bg-indigo-50 text-indigo-600',
-                            blue: 'bg-blue-50 text-blue-600',
-                            sky: 'bg-sky-50 text-sky-600',
-                            cyan: 'bg-cyan-50 text-cyan-600',
-                            teal: 'bg-teal-50 text-teal-600',
-                            emerald: 'bg-emerald-50 text-emerald-600',
-                            green: 'bg-green-50 text-green-600',
-                            lime: 'bg-lime-50 text-lime-600',
-                            yellow: 'bg-yellow-50 text-yellow-600',
-                            amber: 'bg-amber-50 text-amber-600',
-                            orange: 'bg-orange-50 text-orange-600',
-                            red: 'bg-red-50 text-red-600',
-                            stone: 'bg-stone-50 text-stone-600',
-                            slate: 'bg-slate-100 text-slate-500'
-                          };
-
-                          const COLOR_TEXT_MAP = {
-                            rose: 'text-rose-700',
-                            pink: 'text-pink-700',
-                            fuchsia: 'text-fuchsia-700',
-                            purple: 'text-purple-700',
-                            violet: 'text-violet-700',
-                            indigo: 'text-indigo-700',
-                            blue: 'text-blue-700',
-                            sky: 'text-sky-700',
-                            cyan: 'text-cyan-700',
-                            teal: 'text-teal-700',
-                            emerald: 'text-emerald-700',
-                            green: 'text-green-700',
-                            lime: 'text-lime-700',
-                            yellow: 'text-yellow-700',
-                            amber: 'text-amber-700',
-                            orange: 'text-orange-700',
-                            red: 'text-red-700',
-                            stone: 'text-stone-700',
-                            slate: 'text-slate-700'
-                          };
-
-                          const cardBgClass = isCheckIn
-                            ? 'bg-white border border-emerald-200'
-                            : isCheckOut
-                              ? 'bg-white border border-orange-200'
-                              : (COLOR_BG_BORDER_MAP[dynamicColor] || COLOR_BG_BORDER_MAP.slate);
-
-                          const badgeColorClass = isCheckIn
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : isCheckOut
-                              ? 'bg-orange-50 text-orange-700'
-                              : (COLOR_BADGE_MAP[dynamicColor] || COLOR_BADGE_MAP.slate);
-
-                          const iconColorClass = isCheckIn
-                            ? 'bg-emerald-50 text-emerald-600'
-                            : isCheckOut
-                              ? 'bg-orange-50 text-orange-600'
-                              : (COLOR_ICON_MAP[dynamicColor] || COLOR_ICON_MAP.slate);
-
-                          const costColorClass = isCheckIn 
-                            ? 'text-emerald-700' 
-                            : isCheckOut 
-                              ? 'text-orange-700' 
-                              : (COLOR_TEXT_MAP[dynamicColor] || COLOR_TEXT_MAP.slate);
-
-                          if (isEditingThisHotel) {
-                            return (
-                              <div key={acc.id} className={`${cardBgClass} p-4 rounded-2xl shadow-sm space-y-3`}>
-                                <h6 className="font-bold text-amber-950 text-xs uppercase tracking-wider">Edit Accommodation</h6>
-                                <div className="space-y-2">
-                                  <input 
-                                    type="text" 
-                                    value={editTitle} 
-                                    onChange={(e) => setEditTitle(e.target.value)} 
-                                    placeholder="Hotel Name" 
-                                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
-                                  />
-                                  <input 
-                                    type="text" 
-                                    value={editLocation} 
-                                    onChange={(e) => setEditLocation(e.target.value)} 
-                                    placeholder="Location / Address" 
-                                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs" 
-                                  />
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-in</label>
-                                      <input 
-                                        type="date" 
-                                        value={editDate} 
-                                        onChange={(e) => setEditDate(e.target.value)} 
-                                        min={effectiveStartDate} 
-                                        max={effectiveEndDate} 
-                                        className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-[10px] font-bold text-amber-800 uppercase">Check-out</label>
-                                      <input 
-                                        type="date" 
-                                        value={editEndDate} 
-                                        onChange={(e) => setEditEndDate(e.target.value)} 
-                                        min={editDate || effectiveStartDate} 
-                                        max={effectiveEndDate} 
-                                        className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs" 
-                                      />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <input 
-                                      type="number" 
-                                      value={editCost} 
-                                      onChange={(e) => setEditCost(e.target.value)} 
-                                      placeholder="Total Cost" 
-                                      className="w-1/2 bg-white border border-amber-200 rounded-xl px-3 py-1.5 text-xs" 
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex justify-end gap-2 pt-1">
-                                  <button onClick={() => setEditingCardId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-xs cursor-pointer">Cancel</button>
-                                  <button onClick={(e) => handleSaveEdit(acc.id, e)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs cursor-pointer">Save Changes</button>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                                                    return (
-                            <div key={acc.id} className={`${cardBgClass} p-3 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm`}>
-                              <div className="flex items-start md:items-center gap-3">
-                                <div className={`${iconColorClass} p-2 rounded-xl shrink-0`}>
-                                  <Building2 className="w-4 h-4" />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`${badgeColorClass} font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-[10px]`}>
-                                      {isCheckIn ? 'Check-in' : (isCheckOut ? 'Check-out' : acc.category)}
-                                    </span>
-                                    <h5 className="font-semibold text-slate-900 text-sm leading-tight">{acc.title}</h5>
-                                  </div>
-                                  {acc.cost > 0 && (
-                                    <span className={`md:hidden ${costColorClass} text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 mt-2 rounded-full border border-current/20 inline-flex items-center`}>{currency} {Number(acc.cost).toFixed(2)}</span>
-                                  )}
-                                  {acc.location && (
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-                                      <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
-                                      <span className="break-words">{acc.location}</span>
-                                    </div>
-                                  )}
-                                  {!isGuest && (
-                                    <div className="md:hidden flex items-center gap-1 mt-2">
-                                      <button onClick={(e) => handleStartEdit(acc, e)} className="p-2 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
-                                      <button onClick={(e) => handleDeleteItem(acc.id, e)} className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="hidden md:flex items-center gap-3">
-                                {acc.cost > 0 && (
-                                  <span className={`${costColorClass} text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border border-current/20 inline-flex items-center`}>{currency} {Number(acc.cost).toFixed(2)}</span>
-                                )}
-                                {!isGuest && (
-                                  <div className="flex items-center gap-1">
-                                    <button onClick={(e) => handleStartEdit(acc, e)} className="p-1.5 text-slate-400 hover:text-blue-600 transition cursor-pointer" title="Edit Hotel"><Edit2 className="w-4 h-4" /></button>
-                                    <button onClick={(e) => handleDeleteItem(acc.id, e)} className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Delete Hotel"><Trash2 className="w-4 h-4" /></button>
-                                  </div>
-                                )}
-                              </div>
+                        return (
+                          <div key={acc.id} className={`${theme.bg} border p-2.5 rounded-xl flex items-center justify-between shadow-3xs`}>
+                            <div className="flex items-center gap-2">
+                              <Hotel className={`w-3.5 h-3.5 ${theme.text} shrink-0`} />
+                              <p className={`text-[11px] font-bold uppercase tracking-wider ${theme.text}`}>Staying at:</p>
+                              <span className="text-xs font-semibold text-slate-800">{acc.title}</span>
+                              <span className="text-[10px] text-slate-400">({acc.location})</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                     <Droppable droppableId={dateStr} isDropDisabled={isGuest}>
                       {(provided, snapshot) => (
@@ -991,11 +1028,18 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                           ) : (
                             items.map((item, index) => {
                               const nextItem = items[index + 1];
-                              const showTransit = nextItem && item.location && nextItem.location;
+
+                              // Determine start and end locations for transit suggestions
+                              const catLower = item.category?.toLowerCase() || '';
+                              const isTransit = catLower.includes('flight') || catLower.includes('train') || catLower.includes('drive') || catLower.includes('transport');
+                              const startLoc = (isTransit && item.destination) ? item.destination : item.location;
+                              const endLoc = nextItem ? nextItem.location : '';
+
+                              const showTransit = nextItem && startLoc && endLoc && startLoc.trim() !== endLoc.trim();
                               const segmentKey = nextItem ? `${item.id}-${nextItem.id}` : '';
-                              const driveCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||DRIVE` : '';
-                              const walkCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||WALK` : '';
-                              const transitCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||TRANSIT` : '';
+                              const driveCacheKey = nextItem && startLoc && endLoc ? `${startLoc.trim()}||${endLoc.trim()}||DRIVE` : '';
+                              const walkCacheKey = nextItem && startLoc && endLoc ? `${startLoc.trim()}||${endLoc.trim()}||WALK` : '';
+                              const transitCacheKey = nextItem && startLoc && endLoc ? `${startLoc.trim()}||${endLoc.trim()}||TRANSIT` : '';
 
                               const driveInfo = travelCache[driveCacheKey];
                               const walkInfo = travelCache[walkCacheKey];
@@ -1058,8 +1102,176 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                 distanceDisplay = <span className="text-[10px] text-slate-400 px-1">No data</span>;
                               }
 
+                              // Determine variables for hotelstart segments
+                              const isFirstItem = index === 0;
+                              const hasHotelStart = isFirstItem && intermediateAccommodations.length > 0;
+                              const hotelStartSegmentKey = hasHotelStart ? `${intermediateAccommodations[0].id}-${item.id}-hotelstart` : '';
+                              const hotelStartStartLoc = hasHotelStart ? intermediateAccommodations[0].location : '';
+                              const hotelStartEndLoc = hasHotelStart ? item.location : '';
+                              const showHotelStartTransit = hasHotelStart && hotelStartStartLoc && hotelStartEndLoc && hotelStartStartLoc.trim() !== hotelStartEndLoc.trim();
+
+                              const hotelStartDriveCacheKey = showHotelStartTransit ? `${hotelStartStartLoc.trim()}||${hotelStartEndLoc.trim()}||DRIVE` : '';
+                              const hotelStartWalkCacheKey = showHotelStartTransit ? `${hotelStartStartLoc.trim()}||${hotelStartEndLoc.trim()}||WALK` : '';
+                              const hotelStartTransitCacheKey = showHotelStartTransit ? `${hotelStartStartLoc.trim()}||${hotelStartEndLoc.trim()}||TRANSIT` : '';
+
+                              const hotelStartDriveInfo = travelCache[hotelStartDriveCacheKey];
+                              const hotelStartWalkInfo = travelCache[hotelStartWalkCacheKey];
+                              const hotelStartTransitInfo = travelCache[hotelStartTransitCacheKey];
+
+                              let hotelStartDefaultMode = 'DRIVE';
+                              if (hotelStartWalkInfo && !hotelStartWalkInfo.error && typeof hotelStartWalkInfo.duration === 'number') {
+                                if (hotelStartWalkInfo.duration <= 15 || Number(hotelStartWalkInfo.distance) < 1.2) {
+                                  hotelStartDefaultMode = 'WALK';
+                                }
+                              }
+
+                              const hotelStartPreferredMode = travelModes[hotelStartSegmentKey] || hotelStartDefaultMode;
+
+                              const isHotelStartDriveLoading = loadingSegments[`${hotelStartSegmentKey}-DRIVE`];
+                              const isHotelStartWalkLoading = loadingSegments[`${hotelStartSegmentKey}-WALK`];
+                              const isHotelStartTransitLoading = loadingSegments[`${hotelStartSegmentKey}-TRANSIT`];
+
+                              const hotelStartDriveDuration = hotelStartDriveInfo && !hotelStartDriveInfo.error && typeof hotelStartDriveInfo.duration === 'number' ? hotelStartDriveInfo.duration : Infinity;
+                              const hotelStartWalkDuration = hotelStartWalkInfo && !hotelStartWalkInfo.error && typeof hotelStartWalkInfo.duration === 'number' ? hotelStartWalkInfo.duration : Infinity;
+                              const hotelStartTransitDuration = hotelStartTransitInfo && !hotelStartTransitInfo.error && typeof hotelStartTransitInfo.duration === 'number' ? hotelStartTransitInfo.duration : Infinity;
+
+                              let hotelStartFastestMode = null;
+                              let hotelStartMinDuration = Infinity;
+                              if (hotelStartDriveDuration < hotelStartMinDuration) { hotelStartMinDuration = hotelStartDriveDuration; hotelStartFastestMode = 'DRIVE'; }
+                              if (hotelStartWalkDuration < hotelStartMinDuration) { hotelStartMinDuration = hotelStartWalkDuration; hotelStartFastestMode = 'WALK'; }
+                              if (hotelStartTransitDuration < hotelStartMinDuration) { hotelStartMinDuration = hotelStartTransitDuration; hotelStartFastestMode = 'TRANSIT'; }
+                              if (hotelStartMinDuration === Infinity) hotelStartFastestMode = null;
+
+                              const hotelStartActiveInfo = hotelStartPreferredMode === 'DRIVE' ? hotelStartDriveInfo : (hotelStartPreferredMode === 'WALK' ? hotelStartWalkInfo : hotelStartTransitInfo);
+                              const isHotelStartActiveLoading = hotelStartPreferredMode === 'DRIVE' ? isHotelStartDriveLoading : (hotelStartPreferredMode === 'WALK' ? isHotelStartWalkLoading : isHotelStartTransitLoading);
+
+                              let hotelStartDistanceDisplay = null;
+                              if (isHotelStartActiveLoading) {
+                                hotelStartDistanceDisplay = <span className="text-[10px] text-slate-400 animate-pulse px-1">Loading...</span>;
+                              } else if (hotelStartActiveInfo) {
+                                if (hotelStartActiveInfo.error) {
+                                  hotelStartDistanceDisplay = <span className="text-[10px] text-red-500 font-semibold cursor-help px-1" title={hotelStartActiveInfo.errorMessage}>API blocked</span>;
+                                } else {
+                                  hotelStartDistanceDisplay = <span className="text-[10px] text-slate-500 font-semibold px-1">{`(${hotelStartActiveInfo.distance} km)`}</span>;
+                                }
+                              } else {
+                                hotelStartDistanceDisplay = <span className="text-[10px] text-slate-400 px-1">No data</span>;
+                              }
+
                               return (
                                 <React.Fragment key={item.id}>
+                                  {showHotelStartTransit && (
+                                    <div className="flex items-center gap-3 px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit mb-2 mt-1">
+                                      {/* Vertical dotted connector lines */}
+                                      <div className="w-0.5 h-6 border-l-2 border-dotted border-slate-200 self-stretch -my-1.5 shrink-0" />
+                                      
+                                      <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-2.5 py-1 shadow-xs text-[11px] font-medium text-slate-500 transition">
+                                        {/* Label indicating departure from accommodation */}
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From Hotel:</span>
+                                        
+                                        {/* Multi-mode Pill Selector */}
+                                        <div className="flex items-center gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
+                                          {/* Drive Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [hotelStartSegmentKey]: 'DRIVE' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              hotelStartPreferredMode === 'DRIVE' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Drive as preferred mode"
+                                          >
+                                            <Car className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isHotelStartDriveLoading, hotelStartDriveInfo)}</span>
+                                            {hotelStartFastestMode === 'DRIVE' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
+
+                                          {/* Walk Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [hotelStartSegmentKey]: 'WALK' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              hotelStartPreferredMode === 'WALK' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Walk as preferred mode"
+                                          >
+                                            <Footprints className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isHotelStartWalkLoading, hotelStartWalkInfo)}</span>
+                                            {hotelStartFastestMode === 'WALK' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
+
+                                          {/* Transit Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [hotelStartSegmentKey]: 'TRANSIT' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              hotelStartPreferredMode === 'TRANSIT' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Transit as preferred mode"
+                                          >
+                                            <Train className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isHotelStartTransitLoading, hotelStartTransitInfo)}</span>
+                                            {hotelStartFastestMode === 'TRANSIT' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
+                                        </div>
+
+                                        {/* Distance Details */}
+                                        {hotelStartDistanceDisplay}
+
+                                        {/* External link to Google Maps */}
+                                        <a 
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(hotelStartStartLoc)}&destination=${encodeURIComponent(hotelStartEndLoc)}&travelmode=${hotelStartPreferredMode === 'DRIVE' ? 'driving' : (hotelStartPreferredMode === 'WALK' ? 'walking' : 'transit')}`}
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-slate-400 hover:text-blue-600 transition ml-0.5"
+                                          title="Open Directions in Google Maps"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
                                   <ItineraryCard 
                                     item={item} 
                                     index={index} 
@@ -1089,10 +1301,84 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                     editCategory={editCategory} setEditCategory={setEditCategory} sortedCategories={sortedCategories}
                                     editCost={editCost} setEditCost={setEditCost}
                                     editLocation={editLocation} setEditLocation={setEditLocation}
+                                    editDestination={editDestination} setEditDestination={setEditDestination}
+                                    editArrivalHour={editArrivalHour} setEditArrivalHour={setEditArrivalHour}
+                                    editArrivalMinute={editArrivalMinute} setEditArrivalMinute={setEditArrivalMinute}
                                     editDetails={editDetails} setEditDetails={setEditDetails}
                                     isGuest={isGuest}
                                     categoriesWithColors={categoriesWithColors}
                                   />
+
+                                  {/* Early Arrival Luggage Drop Suggestion */}
+                                  {(() => {
+                                    if (!isTransit || !item.arrivalTime || dismissedLuggageSuggestions.has(item.id)) return null;
+                                    // Check if there is already a Luggage Drop activity on this day
+                                    const hasLuggageDrop = items.some(i => i.category === 'Luggage Drop');
+                                    if (hasLuggageDrop) return null;
+                                    // Find the next check-in virtual card in this day's items
+                                    const nextCheckin = items.slice(index + 1).find(i => i.isVirtual && i.type === 'checkin');
+                                    if (!nextCheckin) return null;
+                                    // Compare times as HH:MM strings (zero-padded, so lexicographic is correct)
+                                    if (item.arrivalTime >= nextCheckin.time) return null;
+
+                                    // Snapshot all values into explicit const variables to avoid stale closure issues
+                                    const snapshotArrivalTime = String(item.arrivalTime);
+                                    const snapshotTransitItemId = item.id;
+                                    const hotelName = nextCheckin.title?.replace(/^Check-in:\s*/i, '') || 'the hotel';
+                                    const hotelLocation = nextCheckin.location || '';
+                                    const snapshotCheckInTime = nextCheckin.time;
+                                    const targetCategory = categories.find(c => {
+                                      const name = String(c).toLowerCase();
+                                      return name.includes('other');
+                                    }) || categories.find(c => !isAccommodation(c)) || 'Other';
+                                    const snapshotDate = dateStr;
+
+                                    return (
+                                      <div className="mx-1 my-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 shadow-sm">
+                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                          <span className="text-2xl shrink-0">🧳</span>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-amber-900">You're arriving at {snapshotArrivalTime} — check-in isn't until {snapshotCheckInTime}!</p>
+                                            <p className="text-xs text-amber-700 mt-0.5">Would you like to drop your luggage off at {hotelName} first?</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={async () => {
+                                              setDismissedLuggageSuggestions(prev => new Set([...prev, snapshotTransitItemId]));
+                                              try {
+                                                const luggageItem = {
+                                                  title: `Drop luggage at ${hotelName}`,
+                                                  time: snapshotArrivalTime,
+                                                  date: snapshotDate,
+                                                  category: 'Luggage Drop',
+                                                  location: hotelLocation,
+                                                  details: 'Drop luggage before check-in time.',
+                                                  cost: 0,
+                                                  paidInAdvance: false,
+                                                  highlighted: false,
+                                                  createdAt: new Date()
+                                                };
+                                                const docRef = await addDoc(collection(db, 'trips', tripId, 'itinerary'), luggageItem);
+                                                setItineraryItems(prev => [...prev, { id: docRef.id, ...luggageItem }]);
+                                              } catch (err) { console.error('Error adding luggage drop activity:', err); }
+                                            }}
+                                            className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                                          >
+                                            Yes, add it
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setDismissedLuggageSuggestions(prev => new Set([...prev, snapshotTransitItemId]))}
+                                            className="text-xs text-amber-600 hover:text-amber-800 font-medium transition cursor-pointer px-1"
+                                          >
+                                            No thanks
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
 
                                   {/* Travel Time Connector Strip */}
                                   {showTransit && (
@@ -1215,7 +1501,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                     </Droppable>
 
                                         {(() => {
-                      const mapActivities = [...activeAccommodations, ...items].filter(a => a.location);
+                      const mapActivities = [...intermediateAccommodations, ...items].filter(a => a.location);
                       return mapActivities.length > 0 ? (
                         <DailyMapView 
                           activities={mapActivities} 
