@@ -36,7 +36,7 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
       // 2. Queue email via Firebase Trigger Email extension collection
       await addDoc(collection(db, "mail"), {
         to: email.trim(),
-        from: "away@homeincork.com",
+        from: '"Away from Home: Travel Planner" <away@homeincork.com>',
         senderUid: auth.currentUser?.uid || '',
         createdAt: new Date(),
         message: {
