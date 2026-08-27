@@ -99,6 +99,114 @@ function getTripDateRange(startDateStr, endDateStr) {
   return dates;
 }
 
+function getWeatherDetails(code) {
+  if (code === 0) return { description: 'Clear sky', emoji: '☀️' };
+  if (code === 1 || code === 2 || code === 3) return { description: 'Partly cloudy', emoji: '⛅' };
+  if (code === 45 || code === 48) return { description: 'Foggy', emoji: '🌫️' };
+  if (code === 51 || code === 53 || code === 55) return { description: 'Drizzle', emoji: '🌦️' };
+  if (code === 61 || code === 63 || code === 65) return { description: 'Rainy', emoji: '🌧️' };
+  if (code === 71 || code === 73 || code === 75) return { description: 'Snowy', emoji: '❄️' };
+  if (code === 77) return { description: 'Snow grains', emoji: '❄️' };
+  if (code === 80 || code === 81 || code === 82) return { description: 'Rain showers', emoji: '🌦️' };
+  if (code === 85 || code === 86) return { description: 'Snow showers', emoji: '🌨️' };
+  if (code === 95 || code === 96 || code === 99) return { description: 'Thunderstorm', emoji: '⛈️' };
+  return { description: 'Cloudy', emoji: '☁️' };
+}
+
+function DayWeather({ location, dateStr, fallbackLocation }) {
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!location || !dateStr) return;
+    
+    // Check if within 7 days from today
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const dayDate = new Date(dateStr + 'T00:00:00');
+    const diffTime = dayDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // 7 or less days from today's date
+    const isWithin7Days = diffDays >= 0 && diffDays <= 7;
+
+    if (!isWithin7Days) return;
+
+    const cacheKey = `weather_${location.trim()}_${dateStr}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      setWeather(JSON.parse(cached));
+      return;
+    }
+
+    let isMounted = true;
+    async function fetchForecast() {
+      if (!isMounted) return;
+      setLoading(true);
+      try {
+        // 1. Geocode
+        let geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`);
+        let geoData = await geoRes.json();
+        
+        // Fallback to general trip destination if geocoding the specific item location fails
+        if ((!geoData.results || geoData.results.length === 0) && fallbackLocation) {
+          geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(fallbackLocation)}&count=1&language=en&format=json`);
+          geoData = await geoRes.json();
+        }
+
+        if (!geoData.results || geoData.results.length === 0) return;
+        const { latitude, longitude } = geoData.results[0];
+
+        // 2. Weather
+        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`);
+        const weatherData = await weatherRes.json();
+        if (!weatherData.daily) return;
+
+        const dateIndex = weatherData.daily.time.indexOf(dateStr);
+        if (dateIndex === -1) return;
+
+        const weathercode = weatherData.daily.weathercode[dateIndex];
+        const maxTemp = weatherData.daily.temperature_2m_max[dateIndex];
+        const minTemp = weatherData.daily.temperature_2m_min[dateIndex];
+
+        const details = getWeatherDetails(weathercode);
+        const result = {
+          emoji: details.emoji,
+          description: details.description,
+          temp: `${Math.round(minTemp)}°C - ${Math.round(maxTemp)}°C`
+        };
+
+        if (isMounted) {
+          setWeather(result);
+          sessionStorage.setItem(cacheKey, JSON.stringify(result));
+        }
+      } catch (err) {
+        console.error("Error fetching weather:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    fetchForecast();
+    return () => { isMounted = false; };
+  }, [location, dateStr, fallbackLocation]);
+
+  if (loading) {
+    return <span className="text-[10px] text-slate-400 animate-pulse font-medium shrink-0">Fetching weather...</span>;
+  }
+
+  if (!weather) return null;
+
+  return (
+    <span 
+      title={`Forecast for ${location}`}
+      className="text-[10px] sm:text-xs font-semibold text-slate-500 flex items-center gap-1 shrink-0 cursor-help"
+    >
+      Today's Weather: {weather.emoji} {weather.description} ({weather.temp})
+    </span>
+  );
+}
+
 export default function TripItinerary({ 
   tripId, 
   tripStartDate, 
@@ -989,19 +1097,38 @@ export default function TripItinerary({
             const dayTotal = items.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
             const formattedDateHeading = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
+            // Find first item with a location for weather forecast
+            const firstItemWithLocation = items.find(i => i.location && i.location.trim());
+            const dayLocation = firstItemWithLocation ? firstItemWithLocation.location : (intermediateAccommodations[0]?.location || null);
+
             return (
               <div key={dateStr} className="border-0 sm:border border-slate-200 rounded-none sm:rounded-2xl overflow-hidden bg-transparent sm:bg-slate-50/40">
                 <div 
-                  className="bg-transparent sm:bg-slate-100 px-0 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-200/60 flex items-center justify-between transition"
+                  className="bg-transparent sm:bg-slate-100 px-0 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-200/60 flex flex-col sm:items-stretch justify-between transition"
                 >
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                    <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{formattedDateHeading}</h4>
+                  {/* First line: Date on left, weather & price on right */}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{formattedDateHeading}</h4>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {dayLocation && (
+                        <div className="hidden md:block">
+                          <DayWeather location={dayLocation} dateStr={dateStr} fallbackLocation={tripDestination} />
+                        </div>
+                      )}
+                      {dayTotal > 0 && <span className="text-[10px] sm:text-xs font-bold text-slate-600 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-slate-200 shadow-sm">{currencySymbol}{dayTotal.toFixed(2)}</span>}
+                      {items.length === 0 && intermediateAccommodations.length === 0 && <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {dayTotal > 0 && <span className="text-[10px] sm:text-xs font-bold text-slate-600 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-slate-200 shadow-sm">{currencySymbol}{dayTotal.toFixed(2)}</span>}
-                    {items.length === 0 && intermediateAccommodations.length === 0 && <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 italic">No activities planned</span>}
-                  </div>
+
+                  {/* Second line: Mobile weather view (spilled to next line) */}
+                  {dayLocation && (
+                    <div className="md:hidden w-full flex items-center justify-start pl-6 mt-1.5 border-t border-slate-200/40 pt-1.5">
+                      <DayWeather location={dayLocation} dateStr={dateStr} fallbackLocation={tripDestination} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="py-3 px-0 sm:p-4 space-y-4">
