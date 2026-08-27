@@ -122,12 +122,13 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
   const fetchRoute = useCallback(async (origin, destination, mode, segmentKey) => {
     if (!origin || !destination || !window.google?.maps) return;
     const cacheKey = `${origin.trim()}||${destination.trim()}||${mode}`;
+    const loadingKey = `${segmentKey}-${mode}`;
     
     if (travelCache[cacheKey]) {
       return travelCache[cacheKey];
     }
 
-    setLoadingSegments(prev => ({ ...prev, [segmentKey]: true }));
+    setLoadingSegments(prev => ({ ...prev, [loadingKey]: true }));
 
     try {
       const { Route } = await window.google.maps.importLibrary("routes");
@@ -175,7 +176,7 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         return updated;
       });
     } finally {
-      setLoadingSegments(prev => ({ ...prev, [segmentKey]: false }));
+      setLoadingSegments(prev => ({ ...prev, [loadingKey]: false }));
     }
   }, [travelCache]);
 
@@ -203,15 +204,19 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
         
         if (itemA.location && itemB.location) {
           const segmentKey = `${itemA.id}-${itemB.id}`;
-          const mode = travelModes[segmentKey] || 'DRIVE';
-          const cacheKey = `${itemA.location.trim()}||${itemB.location.trim()}||${mode}`;
+          const modes = ['DRIVE', 'WALK', 'TRANSIT'];
           
-          if (!travelCache[cacheKey] && !loadingSegments[segmentKey]) {
-            fetchRoute(itemA.location, itemB.location, mode, segmentKey);
-          }
-        }
+          modes.forEach(mode => {
+            const cacheKey = `${itemA.location.trim()}||${itemB.location.trim()}||${mode}`;
+            const loadingKey = `${segmentKey}-${mode}`;
+            
+            if (!travelCache[cacheKey] && !loadingSegments[loadingKey]) {
+              fetchRoute(itemA.location, itemB.location, mode, segmentKey);
+            }
+          });
       }
-    });
+    }
+  });
   }, [itineraryItems, travelModes, window.google?.maps, fetchRoute, travelCache, loadingSegments]);
 
     useEffect(() => {
@@ -989,9 +994,61 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               const showTransit = nextItem && item.location && nextItem.location;
                               const segmentKey = nextItem ? `${item.id}-${nextItem.id}` : '';
                               const preferredMode = travelModes[segmentKey] || 'DRIVE';
-                              const cacheKey = nextItem ? `${item.location?.trim()}||${nextItem.location?.trim()}||${preferredMode}` : '';
-                              const routeInfo = travelCache[cacheKey];
-                              const isLoading = loadingSegments[segmentKey];
+                              
+                              const driveCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||DRIVE` : '';
+                              const walkCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||WALK` : '';
+                              const transitCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||TRANSIT` : '';
+
+                              const driveInfo = travelCache[driveCacheKey];
+                              const walkInfo = travelCache[walkCacheKey];
+                              const transitInfo = travelCache[transitCacheKey];
+
+                              const isDriveLoading = loadingSegments[`${segmentKey}-DRIVE`];
+                              const isWalkLoading = loadingSegments[`${segmentKey}-WALK`];
+                              const isTransitLoading = loadingSegments[`${segmentKey}-TRANSIT`];
+
+                              const driveDuration = driveInfo && !driveInfo.error && typeof driveInfo.duration === 'number' ? driveInfo.duration : Infinity;
+                              const walkDuration = walkInfo && !walkInfo.error && typeof walkInfo.duration === 'number' ? walkInfo.duration : Infinity;
+                              const transitDuration = transitInfo && !transitInfo.error && typeof transitInfo.duration === 'number' ? transitInfo.duration : Infinity;
+
+                              let fastestMode = null;
+                              let minDuration = Infinity;
+
+                              if (driveDuration < minDuration) { minDuration = driveDuration; fastestMode = 'DRIVE'; }
+                              if (walkDuration < minDuration) { minDuration = walkDuration; fastestMode = 'WALK'; }
+                              if (transitDuration < minDuration) { minDuration = transitDuration; fastestMode = 'TRANSIT'; }
+                              if (minDuration === Infinity) fastestMode = null;
+
+                              const activeInfo = preferredMode === 'DRIVE' ? driveInfo : (preferredMode === 'WALK' ? walkInfo : transitInfo);
+                              const isActiveLoading = preferredMode === 'DRIVE' ? isDriveLoading : (preferredMode === 'WALK' ? isWalkLoading : isTransitLoading);
+
+                              const getModeDurationText = (isLoading, info) => {
+                                if (isLoading) return '...';
+                                if (!info) return 'pending';
+                                if (info.error) return 'N/A';
+                                return `${info.duration}m`;
+                              };
+
+                              let distanceDisplay = null;
+                              if (isActiveLoading) {
+                                distanceDisplay = <span className="text-[10px] text-slate-400 animate-pulse px-1">Loading...</span>;
+                              } else if (activeInfo) {
+                                if (activeInfo.error) {
+                                  distanceDisplay = (
+                                    <span className="text-[10px] text-red-500 font-semibold cursor-help px-1" title={activeInfo.errorMessage}>
+                                      API blocked
+                                    </span>
+                                  );
+                                } else {
+                                  distanceDisplay = (
+                                    <span className="text-[10px] text-slate-500 font-semibold px-1">
+                                      {`(${activeInfo.distance} km)`}
+                                    </span>
+                                  );
+                                }
+                              } else {
+                                distanceDisplay = <span className="text-[10px] text-slate-400 px-1">No data</span>;
+                              }
 
                               return (
                                 <React.Fragment key={item.id}>
@@ -1035,46 +1092,104 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                                       {/* Vertical dotted connector lines */}
                                       <div className="w-0.5 h-6 border-l-2 border-dotted border-slate-200 self-stretch -my-1.5 shrink-0" />
                                       
-                                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-3 py-1 shadow-sm text-[11px] font-medium text-slate-500 transition">
-                                        {/* Dynamic Mode Selector Button */}
-                                        <button 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const nextMode = preferredMode === 'DRIVE' ? 'WALK' : (preferredMode === 'WALK' ? 'TRANSIT' : 'DRIVE');
-                                            setTravelModes(prev => {
-                                              const updated = { ...prev, [segmentKey]: nextMode };
-                                              localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
-                                              return updated;
-                                            });
-                                          }}
-                                          disabled={isGuest}
-                                          className="flex items-center gap-1.5 hover:text-blue-600 transition disabled:hover:text-slate-500 cursor-pointer disabled:cursor-default"
-                                          title="Change travel mode"
-                                        >
-                                          {preferredMode === 'DRIVE' ? <Car className="w-3.5 h-3.5" /> : (preferredMode === 'WALK' ? <Footprints className="w-3.5 h-3.5" /> : <Train className="w-3.5 h-3.5" />)}
-                                          <span className="capitalize">{preferredMode.toLowerCase()}</span>
-                                        </button>
+                                      <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-2.5 py-1 shadow-xs text-[11px] font-medium text-slate-500 transition">
+                                        
+                                        {/* Multi-mode Pill Selector */}
+                                        <div className="flex items-center gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
+                                          {/* Drive Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [segmentKey]: 'DRIVE' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              preferredMode === 'DRIVE' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Driving as preferred mode"
+                                          >
+                                            <Car className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isDriveLoading, driveInfo)}</span>
+                                            {fastestMode === 'DRIVE' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
 
-                                        <span className="text-slate-300">|</span>
+                                          {/* Walk Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [segmentKey]: 'WALK' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              preferredMode === 'WALK' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Walking as preferred mode"
+                                          >
+                                            <Footprints className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isWalkLoading, walkInfo)}</span>
+                                            {fastestMode === 'WALK' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
 
-                                        {isLoading ? (
-                                          <span className="text-slate-400 animate-pulse">Calculating...</span>
-                                        ) : routeInfo ? (
-                                          routeInfo.error ? (
-                                            <span className="text-red-500 font-semibold cursor-help" title={routeInfo.errorMessage}>Routes API restricted</span>
-                                          ) : (
-                                            <span>{routeInfo.duration} mins ({routeInfo.distance} km)</span>
-                                          )
-                                        ) : (
-                                          <span className="text-slate-400">Routes API pending...</span>
-                                        )}
+                                          {/* Transit Button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTravelModes(prev => {
+                                                const updated = { ...prev, [segmentKey]: 'TRANSIT' };
+                                                localStorage.setItem('travelHubPreferredModes', JSON.stringify(updated));
+                                                return updated;
+                                              });
+                                            }}
+                                            disabled={isGuest}
+                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                              preferredMode === 'TRANSIT' 
+                                                ? 'bg-white text-slate-800 shadow-2xs' 
+                                                : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                            title="Set Transit as preferred mode"
+                                          >
+                                            <Train className="w-3.5 h-3.5" />
+                                            <span>{getModeDurationText(isTransitLoading, transitInfo)}</span>
+                                            {fastestMode === 'TRANSIT' && (
+                                              <span className="absolute -top-1 -right-0.5 flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                              </span>
+                                            )}
+                                          </button>
+                                        </div>
+
+                                        {/* Distance Details */}
+                                        {distanceDisplay}
 
                                         {/* External link to Google Maps */}
                                         <a 
                                           href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode === 'DRIVE' ? 'driving' : (preferredMode === 'WALK' ? 'walking' : 'transit')}`}
                                           target="_blank" 
                                           rel="noopener noreferrer"
-                                          className="text-slate-400 hover:text-blue-600 transition ml-1"
+                                          className="text-slate-400 hover:text-blue-600 transition ml-0.5"
                                           title="Open Directions in Google Maps"
                                         >
                                           <ExternalLink className="w-3 h-3" />
