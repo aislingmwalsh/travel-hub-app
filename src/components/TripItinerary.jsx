@@ -131,20 +131,19 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
 
     try {
       const { Route } = await window.google.maps.importLibrary("routes");
-      const request = {
+       const request = {
         origin: origin.trim(),
         destination: destination.trim(),
         travelMode: mode,
-        fields: ['routes.duration', 'routes.distanceMeters']
+        fields: ['durationMillis', 'distanceMeters']
       };
 
       const response = await Route.computeRoutes(request);
       
       if (response && response.routes && response.routes.length > 0) {
         const route = response.routes[0];
-        const durationSeconds = parseInt(route.duration.replace('s', ''));
-        const durationMins = Math.round(durationSeconds / 60);
-        const distanceKm = (route.distanceMeters / 1000).toFixed(1);
+        const durationMins = route.durationMillis ? Math.round(route.durationMillis / 60000) : 0;
+        const distanceKm = route.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) : '0.0';
         
         const routeData = {
           duration: durationMins,
