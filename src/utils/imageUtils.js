@@ -8,7 +8,7 @@ const SPECIFIC_DESTINATIONS = {
   florence: "https://images.unsplash.com/photo-1543431109-7f0868f764a7?auto=format&fit=crop&w=800&q=80",
   milan: "https://images.unsplash.com/photo-1520175480921-4edfa2983e0f?auto=format&fit=crop&w=800&q=80",
   amalfi: "https://images.unsplash.com/photo-1503152394-c571994fd383?auto=format&fit=crop&w=800&q=80",
-  italy: "https://images.unsplash.com/photo-1498503182468-3b51cbb6cb24?auto=format&fit=crop&w=800&q=80",
+  italy: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=800&q=80",
 
   // Spain & Portugal
   barcelona: "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=800&q=80",
@@ -108,7 +108,7 @@ const SPECIFIC_DESTINATIONS = {
   // Wine Regions
   stellenbosch: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=800&q=80",
   bordeaux: "https://images.unsplash.com/photo-1504275107627-0c2ba7a43dba?auto=format&fit=crop&w=800&q=80",
-  tuscany: "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?auto=format&fit=crop&w=800&q=80",
+  tuscany: "https://images.unsplash.com/photo-1679935983144-abfd99e1f611?auto=format&fit=crop&w=800&q=80",
   napa: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=800&q=80",
   mendoza: "https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80",
   douro: "https://images.unsplash.com/photo-1584967918940-a7d51b064268?auto=format&fit=crop&w=800&q=80",
@@ -136,8 +136,9 @@ export function getTripCoverUrl(destination, isHeader = false) {
   const dest = String(destination || '').trim().toLowerCase();
 
   if (dest) {
-    // 1. Check for specific highly matching cities/countries first
-    for (const key of Object.keys(SPECIFIC_DESTINATIONS)) {
+    // 1. Check for specific highly matching cities/countries first (sort by length descending to match specific regions like 'tuscany' before countries like 'italy')
+    const sortedKeys = Object.keys(SPECIFIC_DESTINATIONS).sort((a, b) => b.length - a.length);
+    for (const key of sortedKeys) {
       if (dest.includes(key)) {
         const url = SPECIFIC_DESTINATIONS[key];
         return isHeader ? url.replace('w=800', 'w=1200') : url;
