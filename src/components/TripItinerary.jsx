@@ -130,11 +130,19 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
     setLoadingSegments(prev => ({ ...prev, [segmentKey]: true }));
 
     try {
-      const { Route } = await window.google.maps.importLibrary("routes");
+      const { Route, RouteTravelMode } = await window.google.maps.importLibrary("routes");
+      
+      let sdkMode = mode;
+      if (RouteTravelMode) {
+        if (mode === 'WALK') sdkMode = RouteTravelMode.WALK;
+        else if (mode === 'TRANSIT') sdkMode = RouteTravelMode.TRANSIT;
+        else sdkMode = RouteTravelMode.DRIVE;
+      }
+
        const request = {
         origin: origin.trim(),
         destination: destination.trim(),
-        travelMode: mode,
+        travelMode: sdkMode,
         fields: ['durationMillis', 'distanceMeters']
       };
 
