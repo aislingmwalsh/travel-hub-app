@@ -993,8 +993,6 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               const nextItem = items[index + 1];
                               const showTransit = nextItem && item.location && nextItem.location;
                               const segmentKey = nextItem ? `${item.id}-${nextItem.id}` : '';
-                              const preferredMode = travelModes[segmentKey] || 'DRIVE';
-                              
                               const driveCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||DRIVE` : '';
                               const walkCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||WALK` : '';
                               const transitCacheKey = nextItem && item.location && nextItem.location ? `${item.location.trim()}||${nextItem.location.trim()}||TRANSIT` : '';
@@ -1002,6 +1000,16 @@ export default function TripItinerary({ tripId, tripStartDate, tripEndDate, curr
                               const driveInfo = travelCache[driveCacheKey];
                               const walkInfo = travelCache[walkCacheKey];
                               const transitInfo = travelCache[transitCacheKey];
+
+                              // Determine intelligent default mode if no user preference is stored
+                              let defaultMode = 'DRIVE';
+                              if (walkInfo && !walkInfo.error && typeof walkInfo.duration === 'number') {
+                                if (walkInfo.duration <= 15 || Number(walkInfo.distance) < 1.2) {
+                                  defaultMode = 'WALK';
+                                }
+                              }
+
+                              const preferredMode = travelModes[segmentKey] || defaultMode;
 
                               const isDriveLoading = loadingSegments[`${segmentKey}-DRIVE`];
                               const isWalkLoading = loadingSegments[`${segmentKey}-WALK`];
