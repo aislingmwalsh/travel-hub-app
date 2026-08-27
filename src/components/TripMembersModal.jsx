@@ -1,6 +1,6 @@
 // src/components/TripMembersModal.jsx
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { Users, UserPlus, Trash2, Shield, Mail, X } from 'lucide-react';
 
@@ -13,8 +13,12 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
   useEffect(() => {
     async function fetchMembers() {
       if (!tripId) return;
-      const querySnapshot = await getDocs(collection(db, "trips", tripId, "members"));
-      setMembers(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      try {
+        const querySnapshot = await getDocs(collection(db, "trips", tripId, "members"));
+        setMembers(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.error("Error fetching members:", err);
+      }
     }
     if (isOpen) fetchMembers();
   }, [tripId, isOpen]);
@@ -32,6 +36,9 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
       // 2. Queue email via Firebase Trigger Email extension collection
       await addDoc(collection(db, "mail"), {
         to: email.trim(),
+        from: "away@homeincork.com",
+        senderUid: auth.currentUser?.uid || '',
+        createdAt: new Date(),
         message: {
           subject: `You've been invited to join a trip!`,
           text: `You have been added as a ${role} to a shared trip. Log in to view and collaborate!`,

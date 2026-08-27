@@ -175,6 +175,7 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
       await Promise.all(memberList.map(member => 
         addDoc(collection(db, "mail"), {
           to: member.email,
+          from: "away@homeincork.com",
           senderUid: auth.currentUser?.uid || '',
           createdAt: new Date(),
           message: {
