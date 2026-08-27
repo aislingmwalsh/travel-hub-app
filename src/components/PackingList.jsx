@@ -108,6 +108,12 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
         return { uid, email };
       }).filter(m => m.email);
 
+      // Always include current logged in user to ensure they receive a copy
+      const currentUserEmail = auth.currentUser?.email;
+      if (currentUserEmail && !memberList.some(m => m.email.toLowerCase() === currentUserEmail.toLowerCase())) {
+        memberList.push({ uid: auth.currentUser.uid, email: currentUserEmail });
+      }
+
       if (memberList.length === 0) {
         setEmailNotice('No members with valid emails found.');
         setEmailing(false);
