@@ -99,7 +99,16 @@ function getTripDateRange(startDateStr, endDateStr) {
   return dates;
 }
 
-export default function TripItinerary({ tripId, tripStartDate, tripEndDate, currency = 'EUR', userRole = 'Guest', tripDestination }) {
+export default function TripItinerary({ 
+  tripId, 
+  tripStartDate, 
+  tripEndDate, 
+  currency = 'EUR', 
+  userRole = 'Guest', 
+  tripDestination,
+  tripMembers = {},
+  userNamesMap = {}
+}) {
   const [itineraryItems, setItineraryItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoriesWithColors, setCategoriesWithColors] = useState([]);

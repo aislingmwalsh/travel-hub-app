@@ -2,15 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, ClipboardList } from 'lucide-react';
 import TripHeader from './TripHeader';
 import TripItinerary from './TripItinerary';
 import TripMembersModal from './TripMembersModal';
+import PackingList from './PackingList';
 
 export default function TripDetails({ tripId, onBack }) {
   const [tripData, setTripData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [userNamesMap, setUserNamesMap] = useState({});
+  const [hasPackingList, setHasPackingList] = useState(false);
+  const [activeTab, setActiveTab] = useState('itinerary'); // 'itinerary' or 'packing'
 
   useEffect(() => {
     async function fetchTripDetails() {
@@ -29,6 +33,49 @@ export default function TripDetails({ tripId, onBack }) {
     }
     fetchTripDetails();
   }, [tripId]);
+
+  useEffect(() => {
+    if (!tripId) return;
+    async function checkPackingList() {
+      try {
+        const packingSnap = await getDoc(doc(db, "trips", tripId, "settings", "packing_list"));
+        setHasPackingList(packingSnap.exists());
+      } catch (err) {
+        console.error("Error checking packing list:", err);
+      }
+    }
+    checkPackingList();
+
+    const handlePackingListCreated = (e) => {
+      if (e.detail?.tripId === tripId) {
+        setHasPackingList(true);
+      }
+    };
+    window.addEventListener('packingListCreated', handlePackingListCreated);
+    return () => window.removeEventListener('packingListCreated', handlePackingListCreated);
+  }, [tripId]);
+
+  useEffect(() => {
+    if (!tripData?.members) return;
+    const uids = Object.keys(tripData.members);
+    if (uids.length === 0) return;
+
+    async function fetchMemberProfiles() {
+      const mapping = {};
+      try {
+        await Promise.all(uids.map(async (uid) => {
+          const userSnap = await getDoc(doc(db, "users", uid));
+          if (userSnap.exists() && userSnap.data().displayName) {
+            mapping[uid] = userSnap.data().displayName;
+          }
+        }));
+        setUserNamesMap(mapping);
+      } catch (err) {
+        console.error("Error fetching member profiles:", err);
+      }
+    }
+    fetchMemberProfiles();
+  }, [tripData?.members]);
 
   // Safely check current user role from members object
   const currentUserRole = tripData?.members?.[auth.currentUser?.uid] || 'Guest';
@@ -67,15 +114,53 @@ export default function TripDetails({ tripId, onBack }) {
         onTripUpdate={(updatedFields) => setTripData(prev => ({ ...prev, ...updatedFields }))}
       />
 
-      {/* Itinerary with Role Permissions Passed */}
-      <TripItinerary 
-        tripId={tripId} 
-        tripStartDate={tripData.startDate} 
-        tripEndDate={tripData.endDate} 
-        currency={tripData.currency || 'EUR'}
-        userRole={currentUserRole}
-        tripDestination={tripData.destination} 
-      />
+      {/* Tabs */}
+      {hasPackingList && (
+        <div className="flex border-b border-slate-200 mb-6 gap-6">
+          <button
+            onClick={() => setActiveTab('itinerary')}
+            className={`pb-2.5 text-sm font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'itinerary' 
+                ? 'border-blue-600 text-blue-600' 
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Calendar className="w-4 h-4" /> Itinerary
+          </button>
+          <button
+            onClick={() => setActiveTab('packing')}
+            className={`pb-2.5 text-sm font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'packing' 
+                ? 'border-blue-600 text-blue-600' 
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" /> Packing List
+          </button>
+        </div>
+      )}
+
+      {/* Conditional Active Panel Render */}
+      {activeTab === 'packing' && hasPackingList ? (
+        <PackingList 
+          tripId={tripId}
+          tripMembers={tripData.members || {}}
+          userNamesMap={userNamesMap}
+          userRole={currentUserRole}
+          tripTitle={tripData.title}
+        />
+      ) : (
+        <TripItinerary 
+          tripId={tripId} 
+          tripStartDate={tripData.startDate} 
+          tripEndDate={tripData.endDate} 
+          currency={tripData.currency || 'EUR'}
+          userRole={currentUserRole}
+          tripDestination={tripData.destination} 
+          tripMembers={tripData.members || {}}
+          userNamesMap={userNamesMap}
+        />
+      )}
 
       <TripMembersModal 
         tripId={tripId} 

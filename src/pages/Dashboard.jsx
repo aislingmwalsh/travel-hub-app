@@ -102,6 +102,13 @@ useEffect(() => {
     async function fetchUserTrips() {
       if (!user) return;
       try {
+        // Auto-sync user profile document in Firestore
+        try {
+          await setDoc(doc(db, "users", user.uid), { email: user.email }, { merge: true });
+        } catch (err) {
+          console.error("Error auto-syncing user profile:", err);
+        }
+
         // Query 1: Trips created by the current user
         const qCreated = query(
           collection(db, "trips"),

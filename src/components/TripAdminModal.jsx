@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2 } from 'lucide-react';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 
 const DEFAULT_CATEGORIES = [
@@ -53,6 +53,12 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     const [editingCatName, setEditingCatName] = useState(null);
     const [editCatInputName, setEditCatName] = useState('');
     const [editCatInputColor, setEditCatColor] = useState('blue');
+
+    // Profile settings state
+    const [profileDisplayName, setProfileDisplayName] = useState('');
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [profileNotice, setProfileNotice] = useState('');
+    const [selectedTripHasPackingList, setSelectedTripHasPackingList] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -108,6 +114,18 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           setMembersMap(tripList[0].members);
         }
 
+        // Fetch current user profile from users collection
+        try {
+          const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+          if (userSnap.exists() && userSnap.data().displayName) {
+            setProfileDisplayName(userSnap.data().displayName);
+          } else {
+            setProfileDisplayName('');
+          }
+        } catch (err) {
+          console.error("Error fetching user profile displayName:", err);
+        }
+
         // Fetch Global Categories
         const catSnap = await getDoc(doc(db, "settings", "global_categories"));
         if (catSnap.exists() && catSnap.data().list) {
@@ -158,6 +176,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
           setSelectedTripRole(currentTrip.userRole);
           setMembersMap(currentTrip.members || {});
         }
+
+        const packingSnap = await getDoc(doc(db, "trips", selectedTripId, "settings", "packing_list"));
+        setSelectedTripHasPackingList(packingSnap.exists());
       } catch (err) {
         console.error("Error fetching trip details:", err);
       }
@@ -176,6 +197,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
   };
 
   const isOwner = selectedTripRole?.toUpperCase() === 'OWNER';
+  const isGuest = selectedTripRole?.toUpperCase() === 'GUEST';
 
   const formatPdfDateHeading = (dateStr) => {
     if (!dateStr || dateStr === 'Unscheduled') return 'Unscheduled Activities';
@@ -685,6 +707,43 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     }
   };
 
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setIsSavingProfile(true);
+    setProfileNotice('');
+    try {
+      await setDoc(doc(db, "users", currentUser.uid), {
+        displayName: profileDisplayName.trim(),
+        email: currentUser.email
+      }, { merge: true });
+      setProfileNotice('Profile display name saved successfully!');
+    } catch (err) {
+      console.error("Error saving user profile:", err);
+      setProfileNotice('Failed to save profile details.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+  const handleCreatePackingList = async () => {
+    if (!selectedTripId) return;
+    try {
+      await setDoc(doc(db, "trips", selectedTripId, "settings", "packing_list"), {
+        items: [
+          { id: 'default-1', name: 'Passports & Travel Documents 🛂', claimedBy: null, claimedByName: '', packed: false },
+          { id: 'default-2', name: 'Chargers & Adapters 🔌', claimedBy: null, claimedByName: '', packed: false },
+          { id: 'default-3', name: 'Toiletries & Toothbrush 🪥', claimedBy: null, claimedByName: '', packed: false }
+        ],
+        createdAt: new Date()
+      });
+      setSelectedTripHasPackingList(true);
+      window.dispatchEvent(new CustomEvent('packingListCreated', { detail: { tripId: selectedTripId } }));
+    } catch (err) {
+      console.error("Error creating packing list:", err);
+      alert("Failed to create packing list.");
+    }
+  };
+
   if (!isOpen) return null;
 
   const memberEntries = Object.entries(membersMap).map(([key, val]) => {
@@ -739,27 +798,43 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         <div className="flex border-b border-slate-200 px-4 sm:px-6 bg-slate-50/50 overflow-x-auto overflow-y-hidden scrollbar-none h-[46px] items-stretch shrink-0">
           <button 
             onClick={() => setActiveTab('members')}
+            title="Trip Admin"
             className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'members' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            <Users className="w-4 h-4" /> Travelers & Roles
+            <Sliders className="w-4 h-4" />
+            {activeTab === 'members' && <span>Trip Admin</span>}
           </button>
           <button 
             onClick={() => setActiveTab('vault')}
+            title="Documents & Links Vault"
             className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'vault' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            <LinkIcon className="w-4 h-4" /> Documents & Links Vault
+            <LinkIcon className="w-4 h-4" />
+            {activeTab === 'vault' && <span>Documents & Links Vault</span>}
           </button>
           <button 
             onClick={() => setActiveTab('categories')}
+            title="Activity Types"
             className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'categories' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            <Tag className="w-4 h-4" /> Activity Types
+            <Tag className="w-4 h-4" />
+            {activeTab === 'categories' && <span>Activity Types</span>}
           </button>
           <button 
             onClick={() => setActiveTab('export')}
+            title="Export PDF"
             className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'export' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            <Download className="w-4 h-4" /> Export PDF
+            <Download className="w-4 h-4" />
+            {activeTab === 'export' && <span>Export PDF</span>}
+          </button>
+          <button 
+            onClick={() => setActiveTab('profile')}
+            title="My Profile"
+            className={`h-full px-3 sm:px-4 text-xs font-bold border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTab === 'profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+          >
+            <User className="w-4 h-4" />
+            {activeTab === 'profile' && <span>My Profile</span>}
           </button>
         </div>
 
@@ -857,6 +932,35 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                   ))}
                 </div>
               </div>
+
+              {/* Trip Features / Packing List */}
+              {selectedTripId && !isGuest && (
+                <div className="pt-6 border-t border-slate-100 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Trip Features</h4>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs">Packing List Feature</p>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedTripHasPackingList 
+                          ? "This trip has a packing list enabled. You'll find it under the Packing List tab." 
+                          : "Enable a shared packing list for all travelers of this trip."}
+                      </p>
+                    </div>
+                    {!selectedTripHasPackingList ? (
+                      <button 
+                        onClick={handleCreatePackingList}
+                        className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm transition"
+                      >
+                        Create Packing List
+                      </button>
+                    ) : (
+                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-lg shrink-0">
+                        Enabled ✓
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {isOwner && (
                 <div className="pt-6 border-t border-red-100 space-y-3">
@@ -1131,6 +1235,57 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* TAB 5: MY PROFILE */}
+          {activeTab === 'profile' && (
+            <div className="space-y-6">
+              <form onSubmit={handleSaveProfile} className="p-5 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">My Profile Settings</h4>
+                  <p className="text-xs text-slate-500 mt-1">Set a custom display name to identify you on shared trips, packing lists, and votes.</p>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase">My Email Address</label>
+                  <input 
+                    type="text" 
+                    value={currentUser?.email || ''} 
+                    disabled 
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-500 cursor-not-allowed" 
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase">Display Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Enter your custom display name" 
+                    value={profileDisplayName} 
+                    onChange={(e) => setProfileDisplayName(e.target.value)} 
+                    required 
+                    maxLength={40}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-blue-500" 
+                  />
+                </div>
+
+                {profileNotice && (
+                  <p className={`text-xs font-semibold ${profileNotice.includes('success') ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {profileNotice}
+                  </p>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button 
+                    type="submit" 
+                    disabled={isSavingProfile}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 

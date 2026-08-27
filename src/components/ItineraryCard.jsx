@@ -3,6 +3,7 @@ import React from 'react';
 import { Clock, MapPin, Trash2, GripVertical, ChevronDown, ChevronUp, ExternalLink, FileText, Edit2, Save, Star, Luggage } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 import { getCurrencySymbol } from '../utils/currencyUtils';
+import { auth } from '../firebase';
 
 const isTransitCategory = (cat) => {
   if (!cat) return false;
