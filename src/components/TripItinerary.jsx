@@ -281,7 +281,14 @@ export default function TripItinerary({
   const [editArrivalMinute, setEditArrivalMinute] = useState('00');
 
   // Track dismissed/accepted early arrival luggage suggestions (by transit item ID)
-  const [dismissedLuggageSuggestions, setDismissedLuggageSuggestions] = useState(new Set());
+  const [dismissedLuggageSuggestions, setDismissedLuggageSuggestions] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`dismissedLuggageSuggestions_${tripId}`);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   // Suggested travel time states
   const [travelCache, setTravelCache] = useState(() => {
@@ -343,6 +350,17 @@ export default function TripItinerary({
 
         setTravelCache(prev => {
           const updated = { ...prev, [cacheKey]: routeData };
+          localStorage.setItem('travelHubRouteCache', JSON.stringify(updated));
+          return updated;
+        });
+      } else {
+        const noRouteData = {
+          duration: 'N/A',
+          distance: 'N/A',
+          noRoute: true
+        };
+        setTravelCache(prev => {
+          const updated = { ...prev, [cacheKey]: noRouteData };
           localStorage.setItem('travelHubRouteCache', JSON.stringify(updated));
           return updated;
         });
@@ -1213,6 +1231,7 @@ export default function TripItinerary({
                               const getModeDurationText = (isLoading, info) => {
                                 if (isLoading) return '...';
                                 if (!info) return 'pending';
+                                if (info.noRoute) return '❌';
                                 if (info.error) return 'N/A';
                                 return `${info.duration}m`;
                               };
@@ -1479,10 +1498,14 @@ export default function TripItinerary({
                                           </div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
-                                          <button
+                                           <button
                                             type="button"
                                             onClick={async () => {
-                                              setDismissedLuggageSuggestions(prev => new Set([...prev, snapshotTransitItemId]));
+                                              setDismissedLuggageSuggestions(prev => {
+                                                const updated = new Set([...prev, snapshotTransitItemId]);
+                                                localStorage.setItem(`dismissedLuggageSuggestions_${tripId}`, JSON.stringify(Array.from(updated)));
+                                                return updated;
+                                              });
                                               try {
                                                 const luggageItem = {
                                                   title: `Drop luggage at ${hotelName}`,
@@ -1506,7 +1529,13 @@ export default function TripItinerary({
                                           </button>
                                           <button
                                             type="button"
-                                            onClick={() => setDismissedLuggageSuggestions(prev => new Set([...prev, snapshotTransitItemId]))}
+                                            onClick={() => {
+                                              setDismissedLuggageSuggestions(prev => {
+                                                const updated = new Set([...prev, snapshotTransitItemId]);
+                                                localStorage.setItem(`dismissedLuggageSuggestions_${tripId}`, JSON.stringify(Array.from(updated)));
+                                                return updated;
+                                              });
+                                            }}
                                             className="text-xs text-amber-600 hover:text-amber-800 font-medium transition cursor-pointer px-1"
                                           >
                                             No thanks
