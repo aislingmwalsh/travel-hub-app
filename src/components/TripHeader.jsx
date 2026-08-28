@@ -5,6 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { Calendar, MapPin, Edit3, Save, X, Tag, Camera } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 import { getTripCoverUrl } from '../utils/imageUtils';
+import { formatHeaderDate } from '../utils/dateUtils';
 
 const STATUS_OPTIONS = ['Planning', 'Booked', 'In Progress', 'Completed'];
 
@@ -101,7 +102,7 @@ export default function TripHeader({ tripId, tripData, userRole, onTripUpdate })
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-500 font-semibold">
               <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-teal-600" /> {tripData.destination}</span>
-              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-600" /> {tripData.startDate} to {tripData.endDate}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-blue-600" /> {formatHeaderDate(tripData.startDate)} to {formatHeaderDate(tripData.endDate)}</span>
               <span className="flex items-center gap-1.5"><Tag className="w-4 h-4 text-purple-600" /> {tripData.currency || 'EUR'} ({currencySymbol})</span>
               {tripData.photoAlbumUrl && (
                 <a 

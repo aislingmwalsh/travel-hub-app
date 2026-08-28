@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, where } from 'firebase/firestore';
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 import { getTripCoverUrl } from '../utils/imageUtils';
+import { formatTripCardDate } from '../utils/dateUtils';
 
 function getNextDay(dateStr) {
   if (!dateStr) return '';
@@ -397,12 +398,14 @@ useEffect(() => {
                       </span>
                     )}
                   </div>
-                  <div className="absolute top-3 right-3 z-10">
-                    <span className="text-[9px] font-bold text-slate-700 bg-white/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow-sm border border-slate-100 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-blue-500" />
-                      {relativeDateLabel}
-                    </span>
-                  </div>
+                  {relativeDateLabel && relativeDateLabel !== 'In progress' && !relativeDateLabel.startsWith('Ended') && (
+                    <div className="absolute top-3 right-3 z-10">
+                      <span className="text-[9px] font-bold text-slate-700 bg-white/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow-sm border border-slate-100 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-blue-500" />
+                        {relativeDateLabel}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Content Section */}
@@ -419,7 +422,7 @@ useEffect(() => {
 
                   <div className="pt-3 border-t border-slate-100 flex justify-between items-center gap-2">
                     <span className="text-xs text-slate-400 font-medium">
-                      {trip.startDate}
+                      {formatTripCardDate(trip.startDate)}
                     </span>
                     <span className="whitespace-nowrap flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-full px-3 py-1.5 transition">
                       <span>View itinerary</span>

@@ -102,30 +102,26 @@ export default function ItineraryCard({
               
               {/* Main Content */}
               <div className="min-w-0 flex-1">
-                {/* Title and Inline Time */}
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
-                    <Clock className="w-3 h-3 text-blue-600" />{item.time}
-                  </span>
-                  {item.arrivalTime && (
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
-                      <Clock className="w-3 h-3 text-teal-500" />arr. {item.arrivalTime}
-                    </span>
-                  )}
-                  <h5 className="font-semibold text-slate-900 text-base break-words flex items-center gap-1.5">
-                    {isLuggageDrop && <Luggage className="w-4 h-4 text-sky-600 shrink-0" />}
-                    {item.title}
-                  </h5>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>
-                  {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currencySymbol} {Number(item.cost).toFixed(2)}</span>}
-                  {item.paidInAdvance && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">Paid ✅</span>}
-                  {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
-                </div>
+                 {/* Title and Inline Time */}
+                 <div className="flex items-center gap-2 flex-wrap mb-1">
+                   <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                     <Clock className="w-3 h-3 text-blue-600" />{item.time}
+                   </span>
+                   {item.arrivalTime && (
+                     <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
+                       <Clock className="w-3 h-3 text-teal-500" />arr. {item.arrivalTime}
+                     </span>
+                   )}
+                   <h5 className="font-semibold text-slate-900 text-base break-words flex items-center gap-1.5">
+                     {isLuggageDrop && <Luggage className="w-4 h-4 text-sky-600 shrink-0" />}
+                     {item.title}
+                   </h5>
+                 </div>
 
                 {/* Location */}
                 {item.location && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1 flex-wrap">
-                    <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                  <div className="flex items-start gap-1.5 text-xs text-slate-500 mt-1">
+                    <MapPin className="w-3.5 h-3.5 text-teal-500 shrink-0 mt-0.5" />
                     {item.destination ? (
                       <span className="break-words font-medium">
                         {item.location} <span className="text-slate-400 mx-1">➔</span> {item.destination}
@@ -152,7 +148,7 @@ export default function ItineraryCard({
                   </button>
                 )}
 
-                {!isEditing && !isGuest && (
+                {!isEditing && !isGuest && !isLuggageDrop && (
                   <button 
                     onClick={onStartEdit} 
                     className="text-slate-400 hover:text-blue-600 p-2.5 transition cursor-pointer"
