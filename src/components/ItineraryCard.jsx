@@ -116,6 +116,10 @@ export default function ItineraryCard({
                      {isLuggageDrop && <Luggage className="w-4 h-4 text-sky-600 shrink-0" />}
                      {item.title}
                    </h5>
+                   {!isLuggageDrop && <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeClass}`}>{item.category || 'Other'}</span>}
+                   {Number(item.cost) > 0 && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">{currencySymbol} {Number(item.cost).toFixed(2)}</span>}
+                   {item.paidInAdvance && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">Paid ✅</span>}
+                   {item.highlighted && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">⭐ Highlighted</span>}
                  </div>
 
                 {/* Location */}
