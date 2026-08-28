@@ -1316,16 +1316,13 @@ export default function TripItinerary({
                               return (
                                 <React.Fragment key={item.id}>
                                   {showHotelStartTransit && (
-                                    <div className="flex items-center gap-3 px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit mb-2 mt-1">
+                                    <div className="flex items-center gap-2 pl-2 pr-1 sm:px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit mb-2 mt-1">
                                       {/* Vertical dotted connector lines */}
                                       <div className="w-0.5 h-6 border-l-2 border-dotted border-slate-200 self-stretch -my-1.5 shrink-0" />
                                       
-                                      <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-2.5 py-1 shadow-xs text-[11px] font-medium text-slate-500 transition">
-                                        {/* Label indicating departure from accommodation */}
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From Hotel:</span>
-                                        
+                                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl sm:rounded-full p-1 sm:px-2.5 sm:py-1 shadow-xs text-[10px] sm:text-[11px] font-medium text-slate-500 transition">
                                         {/* Multi-mode Pill Selector */}
-                                        <div className="flex items-center gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
+                                        <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
                                           {/* Drive Button */}
                                           <button
                                             onClick={(e) => {
@@ -1337,7 +1334,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               hotelStartPreferredMode === 'DRIVE' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1365,7 +1362,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               hotelStartPreferredMode === 'WALK' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1393,7 +1390,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               hotelStartPreferredMode === 'TRANSIT' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1411,19 +1408,19 @@ export default function TripItinerary({
                                           </button>
                                         </div>
 
-                                        {/* Distance Details */}
-                                        {hotelStartDistanceDisplay}
-
-                                        {/* External link to Google Maps */}
-                                        <a 
-                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(hotelStartStartLoc)}&destination=${encodeURIComponent(hotelStartEndLoc)}&travelmode=${hotelStartPreferredMode === 'DRIVE' ? 'driving' : (hotelStartPreferredMode === 'WALK' ? 'walking' : 'transit')}`}
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-slate-400 hover:text-blue-600 transition ml-0.5"
-                                          title="Open Directions in Google Maps"
-                                        >
-                                          <ExternalLink className="w-3 h-3" />
-                                        </a>
+                                        {/* Distance & Map Link wrapped together */}
+                                        <div className="flex items-center gap-1 shrink-0 pl-1">
+                                          {hotelStartDistanceDisplay}
+                                          <a 
+                                            href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(hotelStartStartLoc)}&destination=${encodeURIComponent(hotelStartEndLoc)}&travelmode=${hotelStartPreferredMode === 'DRIVE' ? 'driving' : (hotelStartPreferredMode === 'WALK' ? 'walking' : 'transit')}`}
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-slate-400 hover:text-blue-600 transition ml-0.5"
+                                            title="Open Directions in Google Maps"
+                                          >
+                                            <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        </div>
                                       </div>
                                     </div>
                                   )}
@@ -1547,14 +1544,14 @@ export default function TripItinerary({
 
                                   {/* Travel Time Connector Strip */}
                                   {showTransit && (
-                                    <div className="flex items-center gap-3 px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit">
+                                    <div className="flex items-center gap-2 pl-2 pr-1 sm:px-4 py-1.5 ml-8 sm:ml-9 text-slate-400 group/transit">
                                       {/* Vertical dotted connector lines */}
                                       <div className="w-0.5 h-6 border-l-2 border-dotted border-slate-200 self-stretch -my-1.5 shrink-0" />
                                       
-                                      <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-full px-2.5 py-1 shadow-xs text-[11px] font-medium text-slate-500 transition">
+                                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl sm:rounded-full p-1 sm:px-2.5 sm:py-1 shadow-xs text-[10px] sm:text-[11px] font-medium text-slate-500 transition">
                                         
                                         {/* Multi-mode Pill Selector */}
-                                        <div className="flex items-center gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
+                                        <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100/60 border border-slate-200/50 rounded-lg p-0.5 shadow-2xs">
                                           {/* Drive Button */}
                                           <button
                                             onClick={(e) => {
@@ -1566,7 +1563,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               preferredMode === 'DRIVE' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1594,7 +1591,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               preferredMode === 'WALK' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1622,7 +1619,7 @@ export default function TripItinerary({
                                               });
                                             }}
                                             disabled={isGuest}
-                                            className={`relative flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
+                                            className={`relative flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold transition cursor-pointer ${
                                               preferredMode === 'TRANSIT' 
                                                 ? 'bg-white text-slate-800 shadow-2xs' 
                                                 : 'text-slate-500 hover:text-slate-800'
@@ -1640,19 +1637,19 @@ export default function TripItinerary({
                                           </button>
                                         </div>
 
-                                        {/* Distance Details */}
-                                        {distanceDisplay}
-
-                                        {/* External link to Google Maps */}
-                                        <a 
-                                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode === 'DRIVE' ? 'driving' : (preferredMode === 'WALK' ? 'walking' : 'transit')}`}
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-slate-400 hover:text-blue-600 transition ml-0.5"
-                                          title="Open Directions in Google Maps"
-                                        >
-                                          <ExternalLink className="w-3 h-3" />
-                                        </a>
+                                        {/* Distance & Map Link wrapped together */}
+                                        <div className="flex items-center gap-1 shrink-0 pl-1">
+                                          {distanceDisplay}
+                                          <a 
+                                            href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(nextItem.location)}&travelmode=${preferredMode === 'DRIVE' ? 'driving' : (preferredMode === 'WALK' ? 'walking' : 'transit')}`}
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-slate-400 hover:text-blue-600 transition ml-0.5"
+                                            title="Open Directions in Google Maps"
+                                          >
+                                            <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        </div>
                                       </div>
                                     </div>
                                   )}
