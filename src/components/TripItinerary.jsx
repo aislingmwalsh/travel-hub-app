@@ -9,6 +9,7 @@ import ItineraryForm from './ItineraryForm';
 import ItineraryCard from './ItineraryCard';
 import DailyMapView from './DailyMapView';
 import { getCurrencySymbol } from '../utils/currencyUtils';
+import { calculateDynamicCheckInTime } from '../utils/dateUtils';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -397,6 +398,30 @@ export default function TripItinerary({
     rawSortedDates.forEach(dateStr => {
       const standardItems = grouped[dateStr] || [];
 
+      // Prefetch incoming transit routes to accommodations on this check-in day
+      const dayTransit = standardItems.filter(i => {
+        const cat = String(i.category || '').toLowerCase();
+        return cat.includes('flight') || cat.includes('train') || cat.includes('drive') || cat.includes('transport') || cat.includes('ferry') || cat.includes('bus');
+      });
+      const dayAccCheckins = itineraryItems.filter(i => isAccommodation(i.category) && i.date === dateStr);
+      dayTransit.forEach(transit => {
+        const startLoc = transit.destination || transit.location;
+        dayAccCheckins.forEach(acc => {
+          const endLoc = acc.location;
+          if (startLoc && endLoc && startLoc.trim() !== endLoc.trim()) {
+            const segmentKey = `${transit.id}-${acc.id}`;
+            const modes = ['DRIVE', 'WALK', 'TRANSIT'];
+            modes.forEach(mode => {
+              const cacheKey = `${startLoc.trim()}||${endLoc.trim()}||${mode}`;
+              const loadingKey = `${segmentKey}-${mode}`;
+              if (!travelCache[cacheKey] && !loadingSegments[loadingKey]) {
+                fetchRoute(startLoc, endLoc, mode, segmentKey);
+              }
+            });
+          }
+        });
+      });
+
       // Generate check-ins and check-outs
       const checkInVirtualItems = itineraryItems
         .filter(i => isAccommodation(i.category) && i.date === dateStr)
@@ -405,7 +430,7 @@ export default function TripItinerary({
           parentId: acc.id,
           title: `Check-in: ${acc.title}`,
           date: acc.date,
-          time: acc.checkInTime || '15:00',
+          time: calculateDynamicCheckInTime(acc, standardItems, travelCache, travelModes),
           location: acc.location,
           category: acc.category,
           type: 'checkin',
@@ -1066,22 +1091,29 @@ export default function TripItinerary({
             // Generate virtual check-ins and check-outs for this day
             const checkInVirtualItems = itineraryItems
               .filter(i => isAccommodation(i.category) && i.category !== 'Luggage Drop' && !i.title?.toLowerCase().includes('drop luggage') && i.date === dateStr)
-              .map(acc => ({
-                id: `${acc.id}-checkin`,
-                parentId: acc.id,
-                title: `Check-in: ${acc.title}`,
-                date: acc.date,
-                time: acc.checkInTime || '15:00',
-                location: acc.location,
-                category: acc.category,
-                type: 'checkin',
-                cost: acc.cost,
-                paidInAdvance: acc.paidInAdvance,
-                details: acc.details || '',
-                highlighted: acc.highlighted || false,
-                isVirtual: true,
-                rawItem: acc
-              }));
+              .map(acc => {
+                const dynamicTime = calculateDynamicCheckInTime(acc, standardItems, travelCache, travelModes);
+                const baseCheckInTime = acc.checkInTime || '15:00';
+                const isAutoAdjusted = dynamicTime !== baseCheckInTime;
+                return {
+                  id: `${acc.id}-checkin`,
+                  parentId: acc.id,
+                  title: `Check-in: ${acc.title}`,
+                  date: acc.date,
+                  time: dynamicTime,
+                  isAutoAdjusted,
+                  baseCheckInTime,
+                  location: acc.location,
+                  category: acc.category,
+                  type: 'checkin',
+                  cost: acc.cost,
+                  paidInAdvance: acc.paidInAdvance,
+                  details: acc.details || '',
+                  highlighted: acc.highlighted || false,
+                  isVirtual: true,
+                  rawItem: acc
+                };
+              });
 
             const checkOutVirtualItems = itineraryItems
               .filter(i => isAccommodation(i.category) && i.category !== 'Luggage Drop' && !i.title?.toLowerCase().includes('drop luggage') && i.endDate === dateStr)
@@ -1469,14 +1501,15 @@ export default function TripItinerary({
                                     const nextCheckin = items.slice(index + 1).find(i => i.isVirtual && i.type === 'checkin');
                                     if (!nextCheckin) return null;
                                     // Compare times as HH:MM strings (zero-padded, so lexicographic is correct)
-                                    if (item.arrivalTime >= nextCheckin.time) return null;
+                                    const baseCheckInTime = nextCheckin.baseCheckInTime || nextCheckin.rawItem?.checkInTime || '15:00';
+                                    if (item.arrivalTime >= baseCheckInTime || item.arrivalTime >= nextCheckin.time) return null;
 
                                     // Snapshot all values into explicit const variables to avoid stale closure issues
                                     const snapshotArrivalTime = String(item.arrivalTime);
                                     const snapshotTransitItemId = item.id;
                                     const hotelName = nextCheckin.title?.replace(/^Check-in:\s*/i, '') || 'the hotel';
                                     const hotelLocation = nextCheckin.location || '';
-                                    const snapshotCheckInTime = nextCheckin.time;
+                                    const snapshotCheckInTime = baseCheckInTime;
                                     const targetCategory = categories.find(c => {
                                       const name = String(c).toLowerCase();
                                       return name.includes('other');

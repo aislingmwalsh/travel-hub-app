@@ -104,12 +104,9 @@ export default function ItineraryCard({
               <div className="min-w-0 flex-1">
                  {/* Title and Inline Time */}
                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                   <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
-                     <Clock className="w-3 h-3 text-blue-600" />{item.time}
-                   </span>
-                   {item.arrivalTime && (
-                     <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shrink-0">
-                       <Clock className="w-3 h-3 text-teal-500" />arr. {item.arrivalTime}
+                    <span 
+                      className={`text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 shrink-0 ${
+                        item.isAutoAdjusted ? 'text-amber-800 bg-amber-50 border border-amber-200' : 'text-slate-600 bg-slate-100'
                      </span>
                    )}
                    <h5 className="font-semibold text-slate-900 text-base break-words flex items-center gap-1.5">
