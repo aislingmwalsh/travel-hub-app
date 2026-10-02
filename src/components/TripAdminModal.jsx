@@ -557,6 +557,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       // Firebase's Trigger Email extension sends queued documents in /mail.
       await addDoc(collection(db, 'mail'), {
         to: emailTrimmed,
+        from: '"Away from Home: Travel Planner" <away@homeincork.com>',
+        replyTo: currentUser?.email || 'away@homeincork.com',
+        senderUid: currentUser?.uid || '',
+        createdAt: serverTimestamp(),
         message: {
           subject: `You're invited to ${tripTitle}`,
           text: `${currentUser.email || 'A Travel Hub member'} invited you to join ${tripTitle}${destination} as a ${inviteRole}. Open ${inviteUrl.toString()} to sign in and join the trip.`,

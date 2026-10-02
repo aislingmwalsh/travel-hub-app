@@ -37,6 +37,7 @@ export default function TripMembersModal({ tripId, isOpen, onClose }) {
       await addDoc(collection(db, "mail"), {
         to: email.trim(),
         from: '"Away from Home: Travel Planner" <away@homeincork.com>',
+        replyTo: auth.currentUser?.email || 'away@homeincork.com',
         senderUid: auth.currentUser?.uid || '',
         createdAt: new Date(),
         message: {

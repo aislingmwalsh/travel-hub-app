@@ -176,6 +176,7 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
         addDoc(collection(db, "mail"), {
           to: member.email,
           from: '"Away from Home: Travel Planner" <away@homeincork.com>',
+          replyTo: auth.currentUser?.email || 'away@homeincork.com',
           senderUid: auth.currentUser?.uid || '',
           createdAt: new Date(),
           message: {
