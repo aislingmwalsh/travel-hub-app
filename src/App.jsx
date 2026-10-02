@@ -8,7 +8,7 @@ import TripDetails from './components/TripDetails';
 import TripAdminModal from './components/TripAdminModal';
 import OfflineBanner from './components/OfflineBanner';
 import InstallPwaPrompt from './components/InstallPwaPrompt';
-import { Settings } from 'lucide-react';
+import { Settings, Download } from 'lucide-react';
 import { claimRememberedInvite, rememberInviteFromUrl } from './utils/invitations';
 import { logActivity } from './utils/activityLogger';
 
@@ -17,8 +17,15 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [isGlobalAdminOpen, setIsGlobalAdminOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Check if running as installed standalone app
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    setIsStandalone(standalone);
+
     // Save the invitation before an email sign-in redirects back to the app.
     rememberInviteFromUrl();
 
@@ -110,13 +117,26 @@ export default function App() {
           Away from Home: <br className="sm:hidden" />Travel Planner ✈️ 🌍
         </h1>
         
-        <button 
-          onClick={() => setIsGlobalAdminOpen(true)}
-          aria-label="Open settings and vault"
-          className="shrink-0 flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 sm:px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm"
-        >
-          <Settings className="w-4 h-4 text-blue-600" /> Settings
-        </button>
+        <div className="flex items-center gap-2">
+          {!isStandalone && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('triggerPwaInstall'))}
+              title="Install App to phone/desktop for offline access"
+              className="shrink-0 flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 px-3 py-2 rounded-xl transition cursor-pointer shadow-xs active:scale-95"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-600" />
+              <span>Install App</span>
+            </button>
+          )}
+
+          <button 
+            onClick={() => setIsGlobalAdminOpen(true)}
+            aria-label="Open settings and vault"
+            className="shrink-0 flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 sm:px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
+          >
+            <Settings className="w-4 h-4 text-blue-600" /> Settings
+          </button>
+        </div>
       </header>
 
       <main className="flex-grow">
