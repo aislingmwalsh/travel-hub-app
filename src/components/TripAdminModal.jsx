@@ -16,6 +16,8 @@ const DEFAULT_CATEGORIES = [
   { name: 'Other', color: 'slate' }
 ];
 
+const ADMIN_EMAILS = ['away@homeincork.com', 'aislingmwalsh@gmail.com'];
+
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -23,6 +25,7 @@ function escapeHtml(value) {
 }
 
 export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteTrip }) {
+  const isAdmin = ADMIN_EMAILS.includes(currentUser?.email?.toLowerCase());
   const [authorizedTrips, setAuthorizedTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState('');
   const [activeTab, setActiveTab] = useState('members');
@@ -72,7 +75,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
   // Load weekly intervals for Admin digest
   useEffect(() => {
-    if (!isOpen || !currentUser || currentUser.email !== 'away@homeincork.com') return;
+    if (!isOpen || !currentUser || !isAdmin) return;
 
     async function loadIntervals() {
       try {
@@ -866,7 +869,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       setDigestNotice(`Success! Report for "${selectedInterval?.label || 'selected week'}" queued with ${res.logCount} recorded events.`);
     } catch (err) {
       console.error("Error sending weekly digest:", err);
-      setDigestNotice('Failed to dispatch summary email.');
+      setDigestNotice(`Failed to dispatch summary email: ${err.message || 'Please try again'}`);
     } finally {
       setSendingDigest(false);
     }
@@ -1416,7 +1419,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
               </form>
 
               {/* Admin Weekly Digest Controls */}
-              {currentUser?.email === 'away@homeincork.com' && (
+              {isAdmin && (
                 <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
