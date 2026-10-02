@@ -125,40 +125,29 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     async function fetchAdminData() {
       try {
-        let tripDocs = [];
-        if (isAdmin) {
-          try {
-            const allSnap = await getDocs(collection(db, "trips"));
-            tripDocs = allSnap.docs;
-          } catch (e) {
-            console.warn("Admin all trips fallback:", e);
-          }
-        }
+        // Fetch Trips using parallel, secure queries to satisfy Firestore rules
+        const qCreated = query(
+          collection(db, "trips"),
+          where("createdBy", "==", currentUser.uid)
+        );
+        const qMember = query(
+          collection(db, "trips"),
+          where(`members.${currentUser.uid}`, "!=", null)
+        );
 
-        if (tripDocs.length === 0) {
-          const qCreated = query(
-            collection(db, "trips"),
-            where("createdBy", "==", currentUser.uid)
-          );
-          const qMember = query(
-            collection(db, "trips"),
-            where(`members.${currentUser.uid}`, "!=", null)
-          );
+        const [snapCreated, snapMember] = await Promise.all([
+          getDocs(qCreated),
+          getDocs(qMember)
+        ]);
 
-          const [snapCreated, snapMember] = await Promise.all([
-            getDocs(qCreated),
-            getDocs(qMember)
-          ]);
-
-          const tripMap = new Map();
-          snapCreated.docs.forEach(docSnap => {
-            tripMap.set(docSnap.id, docSnap);
-          });
-          snapMember.docs.forEach(docSnap => {
-            tripMap.set(docSnap.id, docSnap);
-          });
-          tripDocs = Array.from(tripMap.values());
-        }
+        const tripMap = new Map();
+        snapCreated.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+        snapMember.docs.forEach(docSnap => {
+          tripMap.set(docSnap.id, docSnap);
+        });
+        const tripDocs = Array.from(tripMap.values());
 
         const tripList = [];
 
@@ -173,7 +162,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
             id: tripId,
             title: tripData.title || 'Untitled Trip',
             destination: tripData.destination || '',
-            userRole: memberRole ? memberRole.toUpperCase() : (isAdmin ? 'OWNER' : 'GUEST'),
+            userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
             members: tripData.members || { [currentUser.uid]: { role: 'owner', email: currentUser.email } }
           });
         }
