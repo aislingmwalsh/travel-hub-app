@@ -714,16 +714,18 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     if (!linkTitle.trim() || !linkUrl.trim()) return;
 
     try {
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
       const newLink = {
         title: linkTitle.trim(),
         url: linkUrl.trim(),
         category: linkCategory,
+        createdBy: currentUser?.uid || null,
+        addedByName: userName,
         createdAt: new Date()
       };
       const docRef = await addDoc(collection(db, "trips", selectedTripId, "vault"), newLink);
       setVaultLinks(prev => [...prev, { id: docRef.id, ...newLink }]);
       
-      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
       logActivity('vault_link_added', `${userName} added vault link "${linkTitle.trim()}"`, { tripId: selectedTripId });
 
       setLinkTitle('');

@@ -640,6 +640,7 @@ export default function TripItinerary({
         try {
       const catL = category?.toLowerCase() || '';
       const isTransit = catL.includes('flight') || catL.includes('train') || catL.includes('drive') || catL.includes('transport');
+      const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
       const newItem = {
         title,
         time: isFlexibleTime ? 'Flexible' : `${selectedHour}:${selectedMinute}`,
@@ -653,12 +654,14 @@ export default function TripItinerary({
         cost: cost ? parseFloat(cost) : 0,
         paidInAdvance: Boolean(paidInAdvance),
         highlighted: false,
+        createdBy: auth.currentUser?.uid || null,
+        addedByName: currentUserName,
         createdAt: new Date()
       };
       const docRef = await addDoc(collection(db, "trips", tripId, "itinerary"), newItem);
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
       
-      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      const userName = currentUserName;
       logActivity('itinerary_added', `${userName} added an activity: "${title.trim()}"`, {
         tripId,
         category,
@@ -1560,11 +1563,13 @@ export default function TripItinerary({
                                                   cost: 0,
                                                   paidInAdvance: false,
                                                   highlighted: false,
+                                                  createdBy: auth.currentUser?.uid || null,
+                                                  addedByName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler',
                                                   createdAt: new Date()
                                                 };
                                                 const docRef = await addDoc(collection(db, 'trips', tripId, 'itinerary'), luggageItem);
                                                 setItineraryItems(prev => [...prev, { id: docRef.id, ...luggageItem }]);
-                                                const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+                                                const userName = luggageItem.addedByName;
                                                 logActivity('luggage_drop_added', `${userName} added luggage drop at ${hotelName}`, { tripId });
                                               } catch (err) { console.error('Error adding luggage drop activity:', err); }
                                             }}

@@ -196,7 +196,58 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
       userTrips = Array.from(tripMap.values());
     }
 
+      function getTripMemberName(t, uid) {
+        if (!t || !uid) return null;
+        if (t.members && t.members[uid]) {
+          const m = t.members[uid];
+          if (typeof m === 'object') {
+            return m.displayName || m.name || (m.email ? m.email.split('@')[0] : null);
+          }
+        }
+        return null;
+      }
+
+      function getTripOwnerName(t, fallbackUser = null) {
+        if (!t) return 'Trip Organizer';
+        if (fallbackUser && t.createdBy === fallbackUser.uid) {
+          return fallbackUser.displayName || (fallbackUser.email ? fallbackUser.email.split('@')[0] : 'Trip Organizer');
+        }
+        if (t.createdBy && t.members && t.members[t.createdBy]) {
+          const m = t.members[t.createdBy];
+          if (typeof m === 'object') {
+            const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : null);
+            if (name) return name;
+          }
+        }
+        if (t.members) {
+          for (const [, mVal] of Object.entries(t.members)) {
+            if (typeof mVal === 'object' && (mVal.role === 'owner' || mVal.role === 'admin')) {
+              const name = mVal.displayName || mVal.name || (mVal.email ? mVal.email.split('@')[0] : null);
+              if (name) return name;
+            }
+          }
+          for (const [, mVal] of Object.entries(t.members)) {
+            if (typeof mVal === 'object' && mVal.email) {
+              return mVal.displayName || mVal.name || mVal.email.split('@')[0];
+            }
+          }
+        }
+        if (t.createdByName) return t.createdByName;
+        if (t.creatorEmail) return t.creatorEmail.split('@')[0];
+        return 'Trip Organizer';
+      }
+
       for (const trip of userTrips) {
+        const tripOwnerName = getTripOwnerName(trip, user);
+        let creatorEmail = '';
+        if (trip.createdBy === user?.uid) {
+          creatorEmail = user.email || '';
+        } else if (trip.members && trip.createdBy && trip.members[trip.createdBy]?.email) {
+          creatorEmail = trip.members[trip.createdBy].email;
+        } else if (trip.creatorEmail) {
+          creatorEmail = trip.creatorEmail;
+        }
+
         // A. Trip creation event
         let tripCreatedAt = null;
         if (trip.createdAt) {
@@ -212,12 +263,10 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
           const duplicateKey = `trip_created_${trip.id}_${summary}_${tripCreatedAt.split('T')[0]}`;
           if (!seenEventKeys.has(key) && !seenEventKeys.has(duplicateKey)) {
             seenEventKeys.add(key);
-            const creatorEmail = (trip.members && trip.members[trip.createdBy]?.email) || (trip.createdBy === user.uid ? user.email : '');
-            const creatorName = (trip.createdBy === user.uid && user.displayName) || creatorEmail?.split('@')[0] || 'Traveler';
             logs.push({
               id: `historical-trip-${trip.id}`,
               action: 'trip_created',
-              userName: creatorName,
+              userName: tripOwnerName,
               userEmail: creatorEmail,
               summary: summary,
               tripId: trip.id,
@@ -243,10 +292,14 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `member_invited_${trip.id}_${inv.email}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
+                const inviterName = inv.inviterName
+                  || (inv.inviterEmail ? inv.inviterEmail.split('@')[0] : null)
+                  || (inv.inviterUid ? getTripMemberName(trip, inv.inviterUid) : null)
+                  || tripOwnerName;
                 logs.push({
                   id: `historical-inv-${invDoc.id}`,
                   action: 'member_invited',
-                  userName: inv.inviterEmail?.split('@')[0] || 'Admin',
+                  userName: inviterName,
                   userEmail: inv.inviterEmail || '',
                   summary: `Invited ${inv.email} as ${inv.role || 'collaborator'} to "${trip.title}"`,
                   tripId: trip.id,
@@ -267,10 +320,14 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
                 const isLuggage = item.category === 'luggage' || item.title?.toLowerCase().includes('luggage');
+                const authorName = item.addedByName 
+                  || (item.createdBy ? getTripMemberName(trip, item.createdBy) : null)
+                  || (item.createdBy && item.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
+                  || tripOwnerName;
                 logs.push({
                   id: `historical-itinerary-${itemDoc.id}`,
                   action: isLuggage ? 'luggage_drop_added' : 'itinerary_added',
-                  userName: item.addedByName || user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: authorName,
                   summary: `Added activity "${item.title || 'Activity'}" to "${trip.title}"${item.date ? ` (${item.date})` : ''}`,
                   tripId: trip.id,
                   itemId: itemDoc.id,
@@ -288,10 +345,14 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `vault_${trip.id}_${vDoc.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
+                const vaultAuthor = v.addedByName 
+                  || (v.createdBy ? getTripMemberName(trip, v.createdBy) : null)
+                  || (v.createdBy && v.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
+                  || tripOwnerName;
                 logs.push({
                   id: `historical-vault-${vDoc.id}`,
                   action: 'vault_link_added',
-                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: vaultAuthor,
                   summary: `Added link "${v.title || 'Document'}" to "${trip.title}" vault`,
                   tripId: trip.id,
                   createdAt: vCreatedAt
@@ -308,10 +369,15 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `packing_${trip.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
+                const packingAuthor = pData.updatedByName 
+                  || pData.addedByName 
+                  || (pData.createdBy ? getTripMemberName(trip, pData.createdBy) : null)
+                  || (pData.createdBy && pData.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
+                  || tripOwnerName;
                 logs.push({
                   id: `historical-packing-${trip.id}`,
                   action: 'packing_list_created',
-                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: packingAuthor,
                   summary: `Created packing list for "${trip.title}"`,
                   tripId: trip.id,
                   createdAt: pCreatedAt
