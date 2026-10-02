@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
 import { doc, getDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { Plus, Trash2, Mail, Check, Square, CheckSquare, User, Loader2, History, AlertCircle, CheckCircle } from 'lucide-react';
+import { logActivity } from '../utils/activityLogger';
 
 export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {}, userRole = 'Guest', tripTitle = 'Our Trip' }) {
   const [items, setItems] = useState([]);
@@ -84,6 +85,10 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
 
     const updated = [...items, newItem];
     await saveItemsToFirestore(updated);
+    
+    const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+    logActivity('packing_item_added', `${userName} added packing item "${newItemName.trim()}"`, { tripId });
+
     setNewItemName('');
   };
 
@@ -95,19 +100,30 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
 
   const handleTogglePacked = async (itemId) => {
     if (isGuest) return;
+    let toggledItem = null;
     const updated = items.map(item => {
       if (item.id === itemId) {
-        return { ...item, packed: !item.packed };
+        toggledItem = { ...item, packed: !item.packed };
+        return toggledItem;
       }
       return item;
     });
     await saveItemsToFirestore(updated);
+
+    if (toggledItem) {
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      const statusText = toggledItem.packed ? 'packed' : 'unpacked';
+      logActivity('packing_item_toggled', `${userName} marked "${toggledItem.name}" as ${statusText}`, { tripId });
+    }
   };
 
   const handleAssignItem = async (itemId, targetUid) => {
     if (isGuest) return;
+    let assignedItemName = '';
+    let assigneeName = '';
     const updated = items.map(item => {
       if (item.id === itemId) {
+        assignedItemName = item.name;
         if (!targetUid) {
           return { ...item, claimedBy: null, claimedByName: '' };
         }
@@ -116,12 +132,18 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
         const customName = userNamesMap[targetUid];
         const email = tripMembers[targetUid]?.email || '';
         const displayName = customName || email || 'Traveler';
+        assigneeName = displayName;
 
         return { ...item, claimedBy: targetUid, claimedByName: displayName };
       }
       return item;
     });
     await saveItemsToFirestore(updated);
+
+    if (assignedItemName && assigneeName) {
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      logActivity('packing_item_claimed', `${userName} assigned "${assignedItemName}" to ${assigneeName}`, { tripId });
+    }
   };
 
   const handleEmailPackingList = async () => {
@@ -188,6 +210,9 @@ export default function PackingList({ tripId, tripMembers = {}, userNamesMap = {
       ));
 
       console.log("Queued emails in /mail for members:", memberList);
+
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      logActivity('packing_list_emailed', `${userName} emailed the packing list for "${tripTitle}" to ${memberList.length} members`, { tripId });
 
       setEmailNotice(`Emailed to: ${memberList.map(m => m.email).join(', ')} ✉️`);
       setTimeout(() => setEmailNotice(''), 4000);

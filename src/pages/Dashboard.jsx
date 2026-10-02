@@ -5,6 +5,7 @@ import { collection, getDocs, query, orderBy, addDoc, doc, setDoc, updateDoc, wh
 import { Calendar, MapPin, ArrowRight, Filter, Plus, X } from 'lucide-react';
 import { getTripCoverUrl } from '../utils/imageUtils';
 import { formatTripCardDate } from '../utils/dateUtils';
+import { logActivity } from '../utils/activityLogger';
 
 function getNextDay(dateStr) {
   if (!dateStr) return '';
@@ -262,6 +263,11 @@ useEffect(() => {
           }
         }, // 👈 Comma added here correctly!
         createdAt: new Date()
+      });
+
+      logActivity('trip_created', `${user.displayName || user.email?.split('@')[0] || 'A user'} created a trip "${title.trim()}"`, {
+        tripId: newTripRef.id,
+        destination: destination.trim()
       });
 
       // Reset form & close modal

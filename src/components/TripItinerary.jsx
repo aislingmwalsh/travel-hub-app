@@ -1,6 +1,6 @@
 // src/components/TripItinerary.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { Inbox, Building2, Trash2, Edit2, MapPin, Car, Footprints, Train, ExternalLink, Calendar, Hotel } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
@@ -10,6 +10,7 @@ import ItineraryCard from './ItineraryCard';
 import DailyMapView from './DailyMapView';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 import { calculateDynamicCheckInTime } from '../utils/dateUtils';
+import { logActivity } from '../utils/activityLogger';
 
 const DEFAULT_CATEGORIES = ['Tour', 'Meal', 'Museum', 'Transport', 'Accommodation', 'Other'];
 
@@ -656,7 +657,15 @@ export default function TripItinerary({
       };
       const docRef = await addDoc(collection(db, "trips", tripId, "itinerary"), newItem);
       setItineraryItems(prev => [...prev, { id: docRef.id, ...newItem }]);
-            // Reset form fields
+      
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      logActivity('itinerary_added', `${userName} added an activity: "${title.trim()}"`, {
+        tripId,
+        category,
+        activityTitle: title.trim()
+      });
+
+      // Reset form fields
       setTitle('');
       setLocation('');
       setDestination('');
@@ -689,6 +698,9 @@ export default function TripItinerary({
       const docId = itemId.endsWith('-checkin') ? itemId.replace('-checkin', '') : (itemId.endsWith('-checkout') ? itemId.replace('-checkout', '') : itemId);
       await deleteDoc(doc(db, "trips", tripId, "itinerary", docId));
       setItineraryItems(prev => prev.filter(i => i.id !== docId));
+      
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      logActivity('itinerary_deleted', `${userName} removed an itinerary item`, { tripId });
     } catch (err) {
       console.error("Error deleting item:", err);
     }
@@ -768,6 +780,9 @@ export default function TripItinerary({
       setItineraryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setEditingCardId(null);
       setEditPaidInAdvance(false);
+      
+      const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+      logActivity('itinerary_updated', `${userName} updated an activity: "${editTitle.trim()}"`, { tripId });
     } catch (err) {
       console.error("Error saving edit:", err);
     }
@@ -1549,6 +1564,8 @@ export default function TripItinerary({
                                                 };
                                                 const docRef = await addDoc(collection(db, 'trips', tripId, 'itinerary'), luggageItem);
                                                 setItineraryItems(prev => [...prev, { id: docRef.id, ...luggageItem }]);
+                                                const userName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'A traveler';
+                                                logActivity('luggage_drop_added', `${userName} added luggage drop at ${hotelName}`, { tripId });
                                               } catch (err) { console.error('Error adding luggage drop activity:', err); }
                                             }}
                                             className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"

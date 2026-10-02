@@ -1,0 +1,18 @@
+{
+  "crons": [
+    {
+      "path": "/api/weekly-summary",
+      "schedule": "0 9 * * 1"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

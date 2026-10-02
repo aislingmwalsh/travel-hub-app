@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders } from 'lucide-react';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders, Mail } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
+import { logActivity } from '../utils/activityLogger';
+import { generateAndSendWeeklySummary } from '../utils/weeklySummaryGenerator';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Accommodation 🏨', color: 'rose' },
@@ -59,6 +61,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileNotice, setProfileNotice] = useState('');
     const [selectedTripHasPackingList, setSelectedTripHasPackingList] = useState(false);
+
+    // Weekly digest states
+    const [sendingDigest, setSendingDigest] = useState(false);
+    const [digestNotice, setDigestNotice] = useState('');
 
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -495,6 +501,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
       setMembersMap(updatedMembers);
       setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('role_updated', `${userName} updated role of a traveler to "${newRole}"`, { tripId: selectedTripId, newRole });
     } catch (err) {
       console.error("Error updating role:", err);
     }
@@ -511,6 +520,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
       setMembersMap(updatedMembers);
       setAuthorizedTrips(prev => prev.map(t => t.id === selectedTripId ? { ...t, members: updatedMembers } : t));
+
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('member_removed', `${userName} removed a collaborator from trip`, { tripId: selectedTripId });
     } catch (err) {
       console.error("Error removing member:", err);
     }
@@ -571,6 +583,13 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       setInviteEmail('');
       setInviteNotice(`Invitation queued for ${emailTrimmed}.`);
 
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('member_invited', `${userName} invited ${emailTrimmed} as ${inviteRole} to "${tripTitle}"`, {
+        tripId: selectedTripId,
+        invitedEmail: emailTrimmed,
+        role: inviteRole
+      });
+
       const newInvite = {
         id: invitationRef.id,
         email: emailTrimmed,
@@ -612,6 +631,9 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     try {
       await deleteDoc(doc(db, "trips", selectedTripId));
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('trip_deleted', `${userName} deleted trip "${tripTitle}"`, { tripId: selectedTripId });
+      
       if (onDeleteTrip) onDeleteTrip(selectedTripId);
       alert("Trip deleted successfully.");
       onClose();
@@ -635,6 +657,10 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       };
       const docRef = await addDoc(collection(db, "trips", selectedTripId, "vault"), newLink);
       setVaultLinks(prev => [...prev, { id: docRef.id, ...newLink }]);
+      
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('vault_link_added', `${userName} added vault link "${linkTitle.trim()}"`, { tripId: selectedTripId });
+
       setLinkTitle('');
       setLinkUrl('');
     } catch (err) {
@@ -742,9 +768,26 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
       });
       setSelectedTripHasPackingList(true);
       window.dispatchEvent(new CustomEvent('packingListCreated', { detail: { tripId: selectedTripId } }));
+
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
+      logActivity('packing_list_created', `${userName} created a packing list for trip`, { tripId: selectedTripId });
     } catch (err) {
       console.error("Error creating packing list:", err);
       alert("Failed to create packing list.");
+    }
+  };
+
+  const handleSendWeeklyDigest = async () => {
+    setSendingDigest(true);
+    setDigestNotice('');
+    try {
+      const res = await generateAndSendWeeklySummary({ targetEmail: 'away@homeincork.com', days: 7 });
+      setDigestNotice(`Success! Weekly summary queued with ${res.logCount} recorded events.`);
+    } catch (err) {
+      console.error("Error sending weekly digest:", err);
+      setDigestNotice('Failed to dispatch summary email.');
+    } finally {
+      setSendingDigest(false);
     }
   };
 
@@ -1290,6 +1333,42 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                   </button>
                 </div>
               </form>
+
+              {/* Admin Weekly Digest Controls */}
+              {currentUser?.email === 'away@homeincork.com' && (
+                <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-emerald-400" />
+                        <h4 className="font-bold text-sm text-white">Weekly Activity Digest (Admin)</h4>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1">
+                        An automated summary of all trips, invites, and itinerary updates is emailed to <strong>away@homeincork.com</strong> every Monday at 9:00 AM via Vercel Cron.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-700/60">
+                    <div>
+                      {digestNotice && (
+                        <p className={`text-xs font-semibold ${digestNotice.includes('Success') ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {digestNotice}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSendWeeklyDigest}
+                      disabled={sendingDigest}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shrink-0 disabled:opacity-50 shadow-sm"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      {sendingDigest ? 'Generating & Sending...' : 'Send Weekly Report Now'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

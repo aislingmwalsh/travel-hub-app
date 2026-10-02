@@ -28,6 +28,13 @@ service cloud.firestore {
       allow write: if signedIn() && request.auth.uid == userId;
     }
 
+    // Activity logs: read and create for authenticated users; immutable audit trail
+    match /activity_logs/{logId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
     match /mail/{mailId} {
       allow create: if signedIn() &&
         request.resource.data.to is string &&
