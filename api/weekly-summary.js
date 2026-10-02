@@ -22,9 +22,19 @@ export default async function handler(req, res) {
   const DAYS = 7;
 
   try {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - DAYS);
-    const cutoffIso = cutoffDate.toISOString();
+    const startIsoQuery = req.query?.startIso || (req.body && req.body.startIso);
+    const endIsoQuery = req.query?.endIso || (req.body && req.body.endIso);
+
+    let startIso, endIso;
+    if (startIsoQuery && endIsoQuery) {
+      startIso = startIsoQuery;
+      endIso = endIsoQuery;
+    } else {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - DAYS);
+      startIso = cutoffDate.toISOString();
+      endIso = new Date().toISOString();
+    }
 
     // 1. Fetch activity logs via Firestore REST API
     const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/activity_logs?pageSize=300`;
@@ -39,13 +49,13 @@ export default async function handler(req, res) {
     const data = await response.json();
     const rawDocuments = data.documents || [];
 
-    // Parse and filter last 7 days
+    // Parse and filter date range
     const logs = [];
     rawDocuments.forEach(doc => {
       const fields = doc.fields || {};
       const createdAt = fields.createdAt?.stringValue || fields.timestamp?.timestampValue || '';
       
-      if (createdAt && createdAt >= cutoffIso) {
+      if (createdAt && createdAt >= startIso && createdAt <= endIso) {
         logs.push({
           userName: fields.userName?.stringValue || 'Someone',
           summary: fields.summary?.stringValue || 'performed an action',
@@ -80,8 +90,8 @@ export default async function handler(req, res) {
       else if (act.includes('vault')) stats.vaultLinksAdded++;
     });
 
-    const startDateFormatted = cutoffDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const endDateFormatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const startDateFormatted = new Date(startIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const endDateFormatted = new Date(endIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
     // 3. Build HTML & Text content
     const timelineHtml = logs.length > 0

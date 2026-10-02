@@ -1,11 +1,11 @@
 // src/components/TripAdminModal.jsx
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
-import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders, Mail } from 'lucide-react';
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc, query, orderBy, serverTimestamp, where, limit } from 'firebase/firestore';
+import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders, Mail, Calendar, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 import { logActivity } from '../utils/activityLogger';
-import { generateAndSendWeeklySummary } from '../utils/weeklySummaryGenerator';
+import { generateAndSendWeeklySummary, generateWeeklyIntervals, fetchActivitySummaryData } from '../utils/weeklySummaryGenerator';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Accommodation 🏨', color: 'rose' },
@@ -65,6 +65,81 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     // Weekly digest states
     const [sendingDigest, setSendingDigest] = useState(false);
     const [digestNotice, setDigestNotice] = useState('');
+    const [weeklyIntervals, setWeeklyIntervals] = useState([]);
+    const [selectedWeekKey, setSelectedWeekKey] = useState('');
+    const [weekStats, setWeekStats] = useState(null);
+    const [loadingWeekStats, setLoadingWeekStats] = useState(false);
+
+  // Load weekly intervals for Admin digest
+  useEffect(() => {
+    if (!isOpen || !currentUser || currentUser.email !== 'away@homeincork.com') return;
+
+    async function loadIntervals() {
+      try {
+        let earliestDate = '2026-08-01';
+        try {
+          const firstLogQ = query(collection(db, 'activity_logs'), orderBy('createdAt', 'asc'), limit(1));
+          const firstLogSnap = await getDocs(firstLogQ);
+          if (!firstLogSnap.empty) {
+            const data = firstLogSnap.docs[0].data();
+            if (data.createdAt) {
+              earliestDate = data.createdAt;
+            }
+          } else {
+            const firstTripQ = query(collection(db, 'trips'), orderBy('createdAt', 'asc'), limit(1));
+            const firstTripSnap = await getDocs(firstTripQ);
+            if (!firstTripSnap.empty) {
+              const data = firstTripSnap.docs[0].data();
+              if (data.createdAt?.toDate) {
+                earliestDate = data.createdAt.toDate().toISOString();
+              } else if (data.createdAt) {
+                earliestDate = data.createdAt;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not query earliest date, using default:', e);
+        }
+
+        const intervals = generateWeeklyIntervals(earliestDate);
+        setWeeklyIntervals(intervals);
+        if (intervals.length > 0) {
+          setSelectedWeekKey(intervals[0].key);
+        }
+      } catch (err) {
+        console.error('Error loading weekly intervals:', err);
+      }
+    }
+
+    loadIntervals();
+  }, [isOpen, currentUser]);
+
+  // Load preview stats whenever selectedWeekKey or weeklyIntervals change
+  useEffect(() => {
+    if (!selectedWeekKey || weeklyIntervals.length === 0) return;
+    const interval = weeklyIntervals.find(i => i.key === selectedWeekKey) || weeklyIntervals[0];
+    if (!interval) return;
+
+    let isMounted = true;
+    async function loadStats() {
+      setLoadingWeekStats(true);
+      try {
+        const { stats } = await fetchActivitySummaryData(interval.startIso, interval.endIso);
+        if (isMounted) {
+          setWeekStats(stats);
+        }
+      } catch (err) {
+        console.error('Error fetching stats for interval:', err);
+      } finally {
+        if (isMounted) {
+          setLoadingWeekStats(false);
+        }
+      }
+    }
+
+    loadStats();
+    return () => { isMounted = false; };
+  }, [selectedWeekKey, weeklyIntervals]);
 
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -781,8 +856,14 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     setSendingDigest(true);
     setDigestNotice('');
     try {
-      const res = await generateAndSendWeeklySummary({ targetEmail: 'away@homeincork.com', days: 7 });
-      setDigestNotice(`Success! Weekly summary queued with ${res.logCount} recorded events.`);
+      const selectedInterval = weeklyIntervals.find(i => i.key === selectedWeekKey) || weeklyIntervals[0];
+      const res = await generateAndSendWeeklySummary({
+        targetEmail: 'away@homeincork.com',
+        startIso: selectedInterval?.startIso,
+        endIso: selectedInterval?.endIso,
+        customLabel: selectedInterval?.label
+      });
+      setDigestNotice(`Success! Report for "${selectedInterval?.label || 'selected week'}" queued with ${res.logCount} recorded events.`);
     } catch (err) {
       console.error("Error sending weekly digest:", err);
       setDigestNotice('Failed to dispatch summary email.');
@@ -1336,7 +1417,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
               {/* Admin Weekly Digest Controls */}
               {currentUser?.email === 'away@homeincork.com' && (
-                <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md space-y-3">
+                <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl border border-slate-700 shadow-md space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
@@ -1344,9 +1425,56 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                         <h4 className="font-bold text-sm text-white">Weekly Activity Digest (Admin)</h4>
                       </div>
                       <p className="text-xs text-slate-300 mt-1">
-                        An automated summary of all trips, invites, and itinerary updates is emailed to <strong>away@homeincork.com</strong> every Monday at 9:00 AM via Vercel Cron.
+                        An automated summary of all trips, invites, and itinerary updates is emailed to <strong>away@homeincork.com</strong> every Monday at 9:00 AM. You can also select any historical week to preview metrics and trigger an on-demand report.
                       </p>
                     </div>
+                  </div>
+
+                  {/* Week Selector Dropdown */}
+                  <div className="space-y-2 bg-slate-950/40 p-3.5 rounded-2xl border border-slate-700/60">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-blue-400" /> Select Report Week
+                      </label>
+                      {loadingWeekStats && (
+                        <span className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Loading stats...
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      value={selectedWeekKey}
+                      onChange={(e) => setSelectedWeekKey(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      {weeklyIntervals.map((interval) => (
+                        <option key={interval.key} value={interval.key} className="bg-slate-900 text-white">
+                          {interval.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* 4 Stat Badges Preview for selected week */}
+                    {weekStats && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                          <div className="text-sm font-extrabold text-blue-400">{weekStats.tripsCreated}</div>
+                          <div className="text-[10px] uppercase font-semibold text-slate-400">Trips</div>
+                        </div>
+                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                          <div className="text-sm font-extrabold text-purple-400">{weekStats.membersInvited}</div>
+                          <div className="text-[10px] uppercase font-semibold text-slate-400">Invites</div>
+                        </div>
+                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                          <div className="text-sm font-extrabold text-emerald-400">{weekStats.itineraryAdded}</div>
+                          <div className="text-[10px] uppercase font-semibold text-slate-400">Activities</div>
+                        </div>
+                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                          <div className="text-sm font-extrabold text-amber-400">{weekStats.packingActions}</div>
+                          <div className="text-[10px] uppercase font-semibold text-slate-400">Packing</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-700/60">
@@ -1360,11 +1488,11 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                     <button
                       type="button"
                       onClick={handleSendWeeklyDigest}
-                      disabled={sendingDigest}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shrink-0 disabled:opacity-50 shadow-sm"
+                      disabled={sendingDigest || weeklyIntervals.length === 0}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shrink-0 disabled:opacity-50 shadow-sm"
                     >
                       <Mail className="w-3.5 h-3.5" />
-                      {sendingDigest ? 'Generating & Sending...' : 'Send Weekly Report Now'}
+                      {sendingDigest ? 'Generating & Sending...' : 'Send Selected Week Report'}
                     </button>
                   </div>
                 </div>
