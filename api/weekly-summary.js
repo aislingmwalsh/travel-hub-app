@@ -69,7 +69,20 @@ export default async function handler(req, res) {
     // Sort newest first
     logs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-    // 2. Compute stats
+    // 2. Compute stats and active users
+    const activeUsersMap = new Map();
+    logs.forEach(log => {
+      const email = log.userEmail || '';
+      const name = log.userName || (email ? email.split('@')[0] : 'User');
+      const key = (email || name).toLowerCase().trim();
+      if (key && key !== 'cron_system' && key !== 'someone' && key !== 'a user') {
+        if (!activeUsersMap.has(key)) {
+          activeUsersMap.set(key, { name, email });
+        }
+      }
+    });
+    const uniqueUsers = Array.from(activeUsersMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
     const stats = {
       tripsCreated: 0,
       membersInvited: 0,
@@ -77,7 +90,9 @@ export default async function handler(req, res) {
       itineraryModified: 0,
       packingActions: 0,
       vaultLinksAdded: 0,
-      totalEvents: logs.length
+      totalEvents: logs.length,
+      uniqueUsers,
+      uniqueUsersCount: uniqueUsers.length
     };
 
     logs.forEach(log => {
@@ -110,6 +125,18 @@ export default async function handler(req, res) {
         }).join('')
       : `<li style="color: #94a3b8; font-style: italic; font-size: 13px;">No new user activity recorded in the past ${DAYS} days.</li>`;
 
+    const activeUsersHtml = stats.uniqueUsers && stats.uniqueUsers.length > 0
+      ? `<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-bottom: 24px;">
+          <ul style="padding-left: 18px; margin: 0; line-height: 1.6;">
+            ${stats.uniqueUsers.map(u => `
+              <li style="color: #166534; font-size: 13px;">
+                <strong>${escapeHtml(u.name)}</strong> ${u.email ? `<span style="color: #4b5563; font-size: 12px;">(${escapeHtml(u.email)})</span>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+        </div>`
+      : `<p style="color: #94a3b8; font-style: italic; font-size: 13px; margin-bottom: 24px;">No active users recorded for this period.</p>`;
+
     const emailHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
         <div style="background-color: #0f172a; padding: 24px; text-align: left;">
@@ -122,6 +149,10 @@ export default async function handler(req, res) {
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
+              <div style="font-size: 24px; font-weight: 800; color: #0284c7;">${stats.uniqueUsersCount}</div>
+              <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Active Users</div>
+            </div>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
               <div style="font-size: 24px; font-weight: 800; color: #2563eb;">${stats.tripsCreated}</div>
               <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Trips Created</div>
             </div>
@@ -133,11 +164,10 @@ export default async function handler(req, res) {
               <div style="font-size: 24px; font-weight: 800; color: #059669;">${stats.itineraryAdded}</div>
               <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Itinerary Items Added</div>
             </div>
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
-              <div style="font-size: 24px; font-weight: 800; color: #d97706;">${stats.packingActions}</div>
-              <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Packing List Actions</div>
-            </div>
           </div>
+
+          <h2 style="color: #1e293b; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">👥 Active Users (${stats.uniqueUsersCount})</h2>
+          ${activeUsersHtml}
 
           <h2 style="color: #1e293b; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">📝 Recent Activity Timeline (${logs.length} events)</h2>
           <ul style="padding-left: 18px; margin: 0; line-height: 1.5;">
@@ -153,11 +183,14 @@ export default async function handler(req, res) {
 
     const emailText = `Away from Home: Weekly Activity Digest (${startDateFormatted} - ${endDateFormatted})\n\n`
       + `Highlights:\n`
+      + `- Active Users: ${stats.uniqueUsersCount}\n`
       + `- Trips Created: ${stats.tripsCreated}\n`
       + `- Collaborators Invited: ${stats.membersInvited}\n`
       + `- Itinerary Items Added: ${stats.itineraryAdded}\n`
       + `- Packing List Actions: ${stats.packingActions}\n`
       + `- Total Events: ${stats.totalEvents}\n\n`
+      + `Active Users (${stats.uniqueUsersCount}):\n`
+      + (stats.uniqueUsers.length > 0 ? stats.uniqueUsers.map(u => `* ${u.name} ${u.email ? `(${u.email})` : ''}`).join('\n') : 'None recorded') + '\n\n'
       + `Recent Activity:\n`
       + logs.map(l => `* ${l.userName}: ${l.summary}`).join('\n');
 

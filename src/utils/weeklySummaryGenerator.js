@@ -196,58 +196,7 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
       userTrips = Array.from(tripMap.values());
     }
 
-      function getTripMemberName(t, uid) {
-        if (!t || !uid) return null;
-        if (t.members && t.members[uid]) {
-          const m = t.members[uid];
-          if (typeof m === 'object') {
-            return m.displayName || m.name || (m.email ? m.email.split('@')[0] : null);
-          }
-        }
-        return null;
-      }
-
-      function getTripOwnerName(t, fallbackUser = null) {
-        if (!t) return 'Trip Organizer';
-        if (fallbackUser && t.createdBy === fallbackUser.uid) {
-          return fallbackUser.displayName || (fallbackUser.email ? fallbackUser.email.split('@')[0] : 'Trip Organizer');
-        }
-        if (t.createdBy && t.members && t.members[t.createdBy]) {
-          const m = t.members[t.createdBy];
-          if (typeof m === 'object') {
-            const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : null);
-            if (name) return name;
-          }
-        }
-        if (t.members) {
-          for (const [, mVal] of Object.entries(t.members)) {
-            if (typeof mVal === 'object' && (mVal.role === 'owner' || mVal.role === 'admin')) {
-              const name = mVal.displayName || mVal.name || (mVal.email ? mVal.email.split('@')[0] : null);
-              if (name) return name;
-            }
-          }
-          for (const [, mVal] of Object.entries(t.members)) {
-            if (typeof mVal === 'object' && mVal.email) {
-              return mVal.displayName || mVal.name || mVal.email.split('@')[0];
-            }
-          }
-        }
-        if (t.createdByName) return t.createdByName;
-        if (t.creatorEmail) return t.creatorEmail.split('@')[0];
-        return 'Trip Organizer';
-      }
-
       for (const trip of userTrips) {
-        const tripOwnerName = getTripOwnerName(trip, user);
-        let creatorEmail = '';
-        if (trip.createdBy === user?.uid) {
-          creatorEmail = user.email || '';
-        } else if (trip.members && trip.createdBy && trip.members[trip.createdBy]?.email) {
-          creatorEmail = trip.members[trip.createdBy].email;
-        } else if (trip.creatorEmail) {
-          creatorEmail = trip.creatorEmail;
-        }
-
         // A. Trip creation event
         let tripCreatedAt = null;
         if (trip.createdAt) {
@@ -263,10 +212,12 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
           const duplicateKey = `trip_created_${trip.id}_${summary}_${tripCreatedAt.split('T')[0]}`;
           if (!seenEventKeys.has(key) && !seenEventKeys.has(duplicateKey)) {
             seenEventKeys.add(key);
+            const creatorEmail = (trip.members && trip.members[trip.createdBy]?.email) || (trip.createdBy === user.uid ? user.email : '');
+            const creatorName = (trip.createdBy === user.uid && user.displayName) || creatorEmail?.split('@')[0] || 'Traveler';
             logs.push({
               id: `historical-trip-${trip.id}`,
               action: 'trip_created',
-              userName: tripOwnerName,
+              userName: creatorName,
               userEmail: creatorEmail,
               summary: summary,
               tripId: trip.id,
@@ -292,14 +243,10 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `member_invited_${trip.id}_${inv.email}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
-                const inviterName = inv.inviterName
-                  || (inv.inviterEmail ? inv.inviterEmail.split('@')[0] : null)
-                  || (inv.inviterUid ? getTripMemberName(trip, inv.inviterUid) : null)
-                  || tripOwnerName;
                 logs.push({
                   id: `historical-inv-${invDoc.id}`,
                   action: 'member_invited',
-                  userName: inviterName,
+                  userName: inv.inviterEmail?.split('@')[0] || 'Admin',
                   userEmail: inv.inviterEmail || '',
                   summary: `Invited ${inv.email} as ${inv.role || 'collaborator'} to "${trip.title}"`,
                   tripId: trip.id,
@@ -320,14 +267,10 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
                 const isLuggage = item.category === 'luggage' || item.title?.toLowerCase().includes('luggage');
-                const authorName = item.addedByName 
-                  || (item.createdBy ? getTripMemberName(trip, item.createdBy) : null)
-                  || (item.createdBy && item.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
-                  || tripOwnerName;
                 logs.push({
                   id: `historical-itinerary-${itemDoc.id}`,
                   action: isLuggage ? 'luggage_drop_added' : 'itinerary_added',
-                  userName: authorName,
+                  userName: item.addedByName || user.displayName || user.email?.split('@')[0] || 'Traveler',
                   summary: `Added activity "${item.title || 'Activity'}" to "${trip.title}"${item.date ? ` (${item.date})` : ''}`,
                   tripId: trip.id,
                   itemId: itemDoc.id,
@@ -345,14 +288,10 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `vault_${trip.id}_${vDoc.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
-                const vaultAuthor = v.addedByName 
-                  || (v.createdBy ? getTripMemberName(trip, v.createdBy) : null)
-                  || (v.createdBy && v.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
-                  || tripOwnerName;
                 logs.push({
                   id: `historical-vault-${vDoc.id}`,
                   action: 'vault_link_added',
-                  userName: vaultAuthor,
+                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
                   summary: `Added link "${v.title || 'Document'}" to "${trip.title}" vault`,
                   tripId: trip.id,
                   createdAt: vCreatedAt
@@ -369,15 +308,10 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `packing_${trip.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
-                const packingAuthor = pData.updatedByName 
-                  || pData.addedByName 
-                  || (pData.createdBy ? getTripMemberName(trip, pData.createdBy) : null)
-                  || (pData.createdBy && pData.createdBy === user?.uid ? (user.displayName || user.email?.split('@')[0]) : null)
-                  || tripOwnerName;
                 logs.push({
                   id: `historical-packing-${trip.id}`,
                   action: 'packing_list_created',
-                  userName: packingAuthor,
+                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
                   summary: `Created packing list for "${trip.title}"`,
                   tripId: trip.id,
                   createdAt: pCreatedAt
@@ -396,6 +330,23 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
   // Sort newest first
   logs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
+  // Compile unique active users for this reporting period
+  const activeUsersMap = new Map();
+  logs.forEach(log => {
+    const email = log.userEmail || (log.email ? log.email : '');
+    const name = log.userName || (email ? email.split('@')[0] : 'User');
+    const key = (email || name).toLowerCase().trim();
+    if (key && key !== 'cron_system' && key !== 'someone' && key !== 'a user') {
+      if (!activeUsersMap.has(key)) {
+        activeUsersMap.set(key, { name, email });
+      } else if (!activeUsersMap.get(key).email && email) {
+        activeUsersMap.set(key, { name, email });
+      }
+    }
+  });
+
+  const uniqueUsers = Array.from(activeUsersMap.values()).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
+
   // Calculate statistics
   const stats = {
     tripsCreated: 0,
@@ -404,8 +355,11 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
     itineraryModified: 0,
     packingActions: 0,
     vaultLinksAdded: 0,
+    userLogins: 0,
     otherActions: 0,
-    totalEvents: logs.length
+    totalEvents: logs.length,
+    uniqueUsers,
+    uniqueUsersCount: uniqueUsers.length
   };
 
   logs.forEach(log => {
@@ -416,6 +370,7 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
     else if (act.includes('itinerary_updated') || act.includes('itinerary_deleted')) stats.itineraryModified++;
     else if (act.includes('packing')) stats.packingActions++;
     else if (act.includes('vault')) stats.vaultLinksAdded++;
+    else if (act.includes('user_login')) stats.userLogins++;
     else stats.otherActions++;
   });
 
@@ -471,6 +426,19 @@ export async function generateAndSendWeeklySummary(options = {}) {
         }).join('')
       : `<li style="color: #94a3b8; font-style: italic; font-size: 13px;">No new user activity recorded for this period.</li>`;
 
+    // Build active users HTML list
+    const activeUsersHtml = stats.uniqueUsers && stats.uniqueUsers.length > 0
+      ? `<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-bottom: 24px;">
+          <ul style="padding-left: 18px; margin: 0; line-height: 1.6;">
+            ${stats.uniqueUsers.map(u => `
+              <li style="color: #166534; font-size: 13px;">
+                <strong>${escapeHtml(u.name)}</strong> ${u.email ? `<span style="color: #4b5563; font-size: 12px;">(${escapeHtml(u.email)})</span>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+        </div>`
+      : `<p style="color: #94a3b8; font-style: italic; font-size: 13px; margin-bottom: 24px;">No active users logged for this period.</p>`;
+
     // Construct responsive HTML email
     const emailHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
@@ -484,6 +452,10 @@ export async function generateAndSendWeeklySummary(options = {}) {
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
+              <div style="font-size: 24px; font-weight: 800; color: #0284c7;">${stats.uniqueUsersCount}</div>
+              <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Active Users</div>
+            </div>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
               <div style="font-size: 24px; font-weight: 800; color: #2563eb;">${stats.tripsCreated}</div>
               <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Trips Created</div>
             </div>
@@ -495,11 +467,10 @@ export async function generateAndSendWeeklySummary(options = {}) {
               <div style="font-size: 24px; font-weight: 800; color: #059669;">${stats.itineraryAdded}</div>
               <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Itinerary Items Added</div>
             </div>
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px;">
-              <div style="font-size: 24px; font-weight: 800; color: #d97706;">${stats.packingActions}</div>
-              <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">Packing List Actions</div>
-            </div>
           </div>
+
+          <h2 style="color: #1e293b; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">👥 Active Users (${stats.uniqueUsersCount})</h2>
+          ${activeUsersHtml}
 
           <h2 style="color: #1e293b; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">📝 Activity Timeline (${logs.length} events)</h2>
           <ul style="padding-left: 18px; margin: 0; line-height: 1.5;">
@@ -515,11 +486,14 @@ export async function generateAndSendWeeklySummary(options = {}) {
 
     const emailText = `Away from Home: Weekly Activity Digest (${periodHeading})\n\n`
       + `Highlights:\n`
+      + `- Active Users: ${stats.uniqueUsersCount}\n`
       + `- Trips Created: ${stats.tripsCreated}\n`
       + `- Collaborators Invited: ${stats.membersInvited}\n`
       + `- Itinerary Items Added: ${stats.itineraryAdded}\n`
       + `- Packing List Actions: ${stats.packingActions}\n`
       + `- Total Events: ${stats.totalEvents}\n\n`
+      + `Active Users (${stats.uniqueUsersCount}):\n`
+      + (stats.uniqueUsers.length > 0 ? stats.uniqueUsers.map(u => `* ${u.name} ${u.email ? `(${u.email})` : ''}`).join('\n') : 'None recorded') + '\n\n'
       + `Activity Timeline:\n`
       + logs.map(l => `* ${l.userName}: ${l.summary}`).join('\n');
 

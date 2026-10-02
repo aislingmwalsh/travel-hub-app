@@ -8,6 +8,7 @@ import TripDetails from './components/TripDetails';
 import TripAdminModal from './components/TripAdminModal';
 import { Settings } from 'lucide-react';
 import { claimRememberedInvite, rememberInviteFromUrl } from './utils/invitations';
+import { logActivity } from './utils/activityLogger';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -40,6 +41,19 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+
+      if (currentUser) {
+        // Log user login once per browser session per day
+        const sessionKey = `activity_session_${currentUser.uid}_${new Date().toISOString().split('T')[0]}`;
+        if (!sessionStorage.getItem(sessionKey)) {
+          sessionStorage.setItem(sessionKey, 'true');
+          const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+          logActivity('user_login', `${userName} logged in to the app`, {
+            userEmail: currentUser.email,
+            uid: currentUser.uid
+          });
+        }
+      }
     });
 
     return () => unsubscribe();

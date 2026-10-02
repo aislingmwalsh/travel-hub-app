@@ -714,18 +714,16 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     if (!linkTitle.trim() || !linkUrl.trim()) return;
 
     try {
-      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
       const newLink = {
         title: linkTitle.trim(),
         url: linkUrl.trim(),
         category: linkCategory,
-        createdBy: currentUser?.uid || null,
-        addedByName: userName,
         createdAt: new Date()
       };
       const docRef = await addDoc(collection(db, "trips", selectedTripId, "vault"), newLink);
       setVaultLinks(prev => [...prev, { id: docRef.id, ...newLink }]);
       
+      const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Admin';
       logActivity('vault_link_added', `${userName} added vault link "${linkTitle.trim()}"`, { tripId: selectedTripId });
 
       setLinkTitle('');
@@ -1447,25 +1445,47 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
                       ))}
                     </select>
 
-                    {/* 4 Stat Badges Preview for selected week */}
+                    {/* Stat Badges Preview for selected week */}
                     {weekStats && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
-                          <div className="text-sm font-extrabold text-blue-400">{weekStats.tripsCreated}</div>
-                          <div className="text-[10px] uppercase font-semibold text-slate-400">Trips</div>
+                      <div className="space-y-2.5 pt-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center col-span-2 sm:col-span-1">
+                            <div className="text-sm font-extrabold text-cyan-400">{weekStats.uniqueUsersCount || 0}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400">Active Users</div>
+                          </div>
+                          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                            <div className="text-sm font-extrabold text-blue-400">{weekStats.tripsCreated}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400">Trips</div>
+                          </div>
+                          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                            <div className="text-sm font-extrabold text-purple-400">{weekStats.membersInvited}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400">Invites</div>
+                          </div>
+                          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                            <div className="text-sm font-extrabold text-emerald-400">{weekStats.itineraryAdded}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400">Activities</div>
+                          </div>
+                          <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
+                            <div className="text-sm font-extrabold text-amber-400">{weekStats.packingActions}</div>
+                            <div className="text-[10px] uppercase font-semibold text-slate-400">Packing</div>
+                          </div>
                         </div>
-                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
-                          <div className="text-sm font-extrabold text-purple-400">{weekStats.membersInvited}</div>
-                          <div className="text-[10px] uppercase font-semibold text-slate-400">Invites</div>
-                        </div>
-                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
-                          <div className="text-sm font-extrabold text-emerald-400">{weekStats.itineraryAdded}</div>
-                          <div className="text-[10px] uppercase font-semibold text-slate-400">Activities</div>
-                        </div>
-                        <div className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-2 text-center">
-                          <div className="text-sm font-extrabold text-amber-400">{weekStats.packingActions}</div>
-                          <div className="text-[10px] uppercase font-semibold text-slate-400">Packing</div>
-                        </div>
+
+                        {weekStats.uniqueUsers && weekStats.uniqueUsers.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800/80">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+                              <Users className="w-3 h-3 text-cyan-400" /> Active Users This Week ({weekStats.uniqueUsersCount}):
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {weekStats.uniqueUsers.map(u => (
+                                <span key={u.email || u.name} className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800/90 border border-slate-700 rounded-lg text-[11px] text-slate-200">
+                                  <span className="font-semibold text-white">{u.name}</span>
+                                  {u.email && <span className="text-[10px] text-slate-400">({u.email})</span>}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
