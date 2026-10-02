@@ -6,15 +6,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper to check if the user is a member or creator of the trip
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.email == 'away@homeincork.com' ||
+        request.auth.token.email == 'aislingmwalsh@gmail.com'
+      );
+    }
+
+    // Helper to check if the user is a member or creator of the trip (or admin)
     // Uses exists() to safely handle cases before the parent document is fully registered
     function isTripMember(tripId) {
-      return signedIn() && 
+      return isAdmin() || (
+        signedIn() && 
         exists(/databases/$(database)/documents/trips/$(tripId)) && (
           get(/databases/$(database)/documents/trips/$(tripId)).data.createdBy == request.auth.uid ||
           (get(/databases/$(database)/documents/trips/$(tripId)).data.members != null &&
            get(/databases/$(database)/documents/trips/$(tripId)).data.members[request.auth.uid] != null)
-        );
+        )
+      );
     }
 
     // Allow read/write access to settings (global categories configuration)
@@ -47,10 +56,12 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      // Allow reading the trip if signed in and the user is the creator OR in the members map
-      allow read: if signedIn() && (
-        resource.data.createdBy == request.auth.uid || 
-        (resource.data.members != null && resource.data.members[request.auth.uid] != null)
+      // Allow reading the trip if admin, or if signed in and the user is the creator OR in the members map
+      allow read: if isAdmin() || (
+        signedIn() && (
+          resource.data.createdBy == request.auth.uid || 
+          (resource.data.members != null && resource.data.members[request.auth.uid] != null)
+        )
       );
 
       // Allow creation of a trip for any signed-in user
