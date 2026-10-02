@@ -1,11 +1,12 @@
 // src/components/InstallPwaPrompt.jsx
 import React, { useState, useEffect } from 'react';
-import { Download, X, Share, PlusSquare, Smartphone, Laptop, Check } from 'lucide-react';
+import { Download, X, Share, PlusSquare, Smartphone, MoreVertical } from 'lucide-react';
 
 export default function InstallPwaPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIos, setIsIos] = useState(false);
+  const [isFirefoxAndroid, setIsFirefoxAndroid] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
@@ -20,13 +21,19 @@ export default function InstallPwaPrompt() {
       return; // Already installed
     }
 
-    // 2. Detect iOS Safari
+    // 2. Detect iOS Safari or Firefox Android
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
+    const isFirefox = /firefox|fxios/.test(userAgent);
+    const isAndroid = /android/.test(userAgent);
 
     if (isIosDevice) {
       setIsIos(true);
+    }
+
+    if (isFirefox && isAndroid) {
+      setIsFirefoxAndroid(true);
     }
 
     // 3. Check if user dismissed prompt recently (14 day snooze)
@@ -34,13 +41,13 @@ export default function InstallPwaPrompt() {
     const isSnoozed = dismissedUntil && new Date().getTime() < Number(dismissedUntil);
 
     if (!isSnoozed) {
-      if (isIosDevice && isSafari) {
+      if ((isIosDevice && isSafari) || (isFirefox && isAndroid)) {
         const timer = setTimeout(() => setShowPrompt(true), 2500);
         return () => clearTimeout(timer);
       }
     }
 
-    // 4. Listen for Chrome/Android beforeinstallprompt
+    // 4. Listen for Chrome/Edge/Samsung Internet beforeinstallprompt
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -140,7 +147,7 @@ export default function InstallPwaPrompt() {
                   <Smartphone className="w-4 h-4" />
                 </div>
                 <h3 className="font-bold text-base text-slate-900">
-                  {isIos ? 'Install on iPhone / iPad' : 'Install Away from Home'}
+                  {isIos ? 'Install on iPhone / iPad' : (isFirefoxAndroid ? 'Install in Firefox (Android)' : 'Install Away from Home')}
                 </h3>
               </div>
               <button
@@ -182,6 +189,41 @@ export default function InstallPwaPrompt() {
                     </div>
                     <div className="pt-0.5">
                       Tap <span className="font-bold text-blue-600">Add</span> in the top right corner. Done!
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : isFirefoxAndroid ? (
+              <>
+                <p className="text-xs text-slate-600">
+                  Install from Firefox to your Android home screen:
+                </p>
+
+                <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 text-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">
+                      1
+                    </div>
+                    <div className="pt-0.5">
+                      Tap the <span className="font-semibold text-slate-900 inline-flex items-center gap-1 mx-0.5"><MoreVertical className="w-3.5 h-3.5 inline text-blue-600" /> 3 dots menu</span> next to the Firefox address bar.
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">
+                      2
+                    </div>
+                    <div className="pt-0.5">
+                      Tap <span className="font-bold text-blue-600">"Install"</span> (or "Add to Home screen").
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-xs">
+                      3
+                    </div>
+                    <div className="pt-0.5">
+                      Tap <span className="font-bold text-blue-600">Add to home screen</span> to confirm.
                     </div>
                   </div>
                 </div>
