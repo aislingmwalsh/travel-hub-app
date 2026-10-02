@@ -6,6 +6,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TripDetails from './components/TripDetails'; 
 import TripAdminModal from './components/TripAdminModal';
+import OfflineBanner from './components/OfflineBanner';
+import InstallPwaPrompt from './components/InstallPwaPrompt';
 import { Settings } from 'lucide-react';
 import { claimRememberedInvite, rememberInviteFromUrl } from './utils/invitations';
 import { logActivity } from './utils/activityLogger';
@@ -87,11 +89,19 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return (
+      <>
+        <OfflineBanner />
+        <Login />
+        <InstallPwaPrompt />
+      </>
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <OfflineBanner />
+
       <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sticky top-0 z-40 shadow-sm">
         <h1 
           onClick={() => setSelectedTripId(null)} 
@@ -128,6 +138,8 @@ export default function App() {
         onClose={() => setIsGlobalAdminOpen(false)}
         currentUser={user}
       />
+
+      <InstallPwaPrompt />
     </div>
   );
 }

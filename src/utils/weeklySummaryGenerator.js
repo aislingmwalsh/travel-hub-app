@@ -197,6 +197,20 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
     }
 
       for (const trip of userTrips) {
+        // Resolve creator name and email for this trip
+        const creatorEmail = (trip.members && trip.members[trip.createdBy]?.email) || 
+          (typeof trip.members?.[trip.createdBy] === 'string' ? trip.members[trip.createdBy] : '') || 
+          (trip.createdBy === user.uid ? user.email : '') || '';
+
+        let creatorName = '';
+        if (trip.createdBy === user.uid && user.displayName) {
+          creatorName = user.displayName;
+        } else if (creatorEmail) {
+          creatorName = creatorEmail.split('@')[0];
+        } else {
+          creatorName = 'Trip Organizer';
+        }
+
         // A. Trip creation event
         let tripCreatedAt = null;
         if (trip.createdAt) {
@@ -212,8 +226,6 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
           const duplicateKey = `trip_created_${trip.id}_${summary}_${tripCreatedAt.split('T')[0]}`;
           if (!seenEventKeys.has(key) && !seenEventKeys.has(duplicateKey)) {
             seenEventKeys.add(key);
-            const creatorEmail = (trip.members && trip.members[trip.createdBy]?.email) || (trip.createdBy === user.uid ? user.email : '');
-            const creatorName = (trip.createdBy === user.uid && user.displayName) || creatorEmail?.split('@')[0] || 'Traveler';
             logs.push({
               id: `historical-trip-${trip.id}`,
               action: 'trip_created',
@@ -246,8 +258,8 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
                 logs.push({
                   id: `historical-inv-${invDoc.id}`,
                   action: 'member_invited',
-                  userName: inv.inviterEmail?.split('@')[0] || 'Admin',
-                  userEmail: inv.inviterEmail || '',
+                  userName: inv.inviterEmail?.split('@')[0] || creatorName || 'Admin',
+                  userEmail: inv.inviterEmail || creatorEmail || '',
                   summary: `Invited ${inv.email} as ${inv.role || 'collaborator'} to "${trip.title}"`,
                   tripId: trip.id,
                   invitedEmail: inv.email,
@@ -267,10 +279,27 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
                 const isLuggage = item.category === 'luggage' || item.title?.toLowerCase().includes('luggage');
+
+                // Accurately determine author of the activity
+                let authorName = item.addedByName || item.userName;
+                let authorEmail = item.addedByEmail || item.userEmail;
+
+                if (!authorName) {
+                  if (item.createdBy && trip.members?.[item.createdBy]) {
+                    const memberEmail = typeof trip.members[item.createdBy] === 'object' ? trip.members[item.createdBy].email : trip.members[item.createdBy];
+                    authorEmail = memberEmail || '';
+                    authorName = (item.createdBy === user.uid && user.displayName) ? user.displayName : (memberEmail ? memberEmail.split('@')[0] : 'Trip Member');
+                  } else {
+                    authorName = creatorName;
+                    authorEmail = creatorEmail;
+                  }
+                }
+
                 logs.push({
                   id: `historical-itinerary-${itemDoc.id}`,
                   action: isLuggage ? 'luggage_drop_added' : 'itinerary_added',
-                  userName: item.addedByName || user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: authorName,
+                  userEmail: authorEmail,
                   summary: `Added activity "${item.title || 'Activity'}" to "${trip.title}"${item.date ? ` (${item.date})` : ''}`,
                   tripId: trip.id,
                   itemId: itemDoc.id,
@@ -288,10 +317,13 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `vault_${trip.id}_${vDoc.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
+                let authorName = v.addedByName || creatorName;
+                let authorEmail = v.addedByEmail || creatorEmail;
                 logs.push({
                   id: `historical-vault-${vDoc.id}`,
                   action: 'vault_link_added',
-                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: authorName,
+                  userEmail: authorEmail,
                   summary: `Added link "${v.title || 'Document'}" to "${trip.title}" vault`,
                   tripId: trip.id,
                   createdAt: vCreatedAt
@@ -308,10 +340,13 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
               const key = `packing_${trip.id}`;
               if (!seenEventKeys.has(key)) {
                 seenEventKeys.add(key);
+                let authorName = pData.createdByName || creatorName;
+                let authorEmail = pData.createdByEmail || creatorEmail;
                 logs.push({
                   id: `historical-packing-${trip.id}`,
                   action: 'packing_list_created',
-                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  userName: authorName,
+                  userEmail: authorEmail,
                   summary: `Created packing list for "${trip.title}"`,
                   tripId: trip.id,
                   createdAt: pCreatedAt

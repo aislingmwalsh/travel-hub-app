@@ -7,7 +7,11 @@ import {
   GoogleAuthProvider,
   signInWithPopup 
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
 // 1. Your exact Firebase configuration keys
@@ -23,7 +27,14 @@ const firebaseConfig = {
 // 2. Initialise the Firebase app and our database/auth services (ONLY ONCE!)
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Enable offline IndexedDB persistence for all trips, itineraries, and packing lists
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
 export const functions = getFunctions(app, "us-central1");
 
 // 3. Magic Link Helper
