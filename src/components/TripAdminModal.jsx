@@ -125,33 +125,44 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     async function fetchAdminData() {
       try {
-        // Fetch Trips using parallel, secure queries to satisfy Firestore rules
-        const qCreated = query(
-          collection(db, "trips"),
-          where("createdBy", "==", currentUser.uid)
-        );
-        const qMember = query(
-          collection(db, "trips"),
-          where(`members.${currentUser.uid}`, "!=", null)
-        );
+        let tripDocs = [];
+        if (isAdmin) {
+          try {
+            const allSnap = await getDocs(collection(db, "trips"));
+            tripDocs = allSnap.docs;
+          } catch (e) {
+            console.warn("Admin all trips fallback:", e);
+          }
+        }
 
-        const [snapCreated, snapMember] = await Promise.all([
-          getDocs(qCreated),
-          getDocs(qMember)
-        ]);
+        if (tripDocs.length === 0) {
+          const qCreated = query(
+            collection(db, "trips"),
+            where("createdBy", "==", currentUser.uid)
+          );
+          const qMember = query(
+            collection(db, "trips"),
+            where(`members.${currentUser.uid}`, "!=", null)
+          );
 
-        // Merge results and deduplicate by ID
-        const tripMap = new Map();
-        snapCreated.docs.forEach(docSnap => {
-          tripMap.set(docSnap.id, docSnap);
-        });
-        snapMember.docs.forEach(docSnap => {
-          tripMap.set(docSnap.id, docSnap);
-        });
+          const [snapCreated, snapMember] = await Promise.all([
+            getDocs(qCreated),
+            getDocs(qMember)
+          ]);
+
+          const tripMap = new Map();
+          snapCreated.docs.forEach(docSnap => {
+            tripMap.set(docSnap.id, docSnap);
+          });
+          snapMember.docs.forEach(docSnap => {
+            tripMap.set(docSnap.id, docSnap);
+          });
+          tripDocs = Array.from(tripMap.values());
+        }
 
         const tripList = [];
 
-        for (const docSnap of tripMap.values()) {
+        for (const docSnap of tripDocs) {
           const tripData = docSnap.data();
           const tripId = docSnap.id;
 
@@ -162,7 +173,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
             id: tripId,
             title: tripData.title || 'Untitled Trip',
             destination: tripData.destination || '',
-            userRole: memberRole ? memberRole.toUpperCase() : 'OWNER',
+            userRole: memberRole ? memberRole.toUpperCase() : (isAdmin ? 'OWNER' : 'GUEST'),
             members: tripData.members || { [currentUser.uid]: { role: 'owner', email: currentUser.email } }
           });
         }

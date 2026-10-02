@@ -24,25 +24,41 @@ export async function findEarliestActivityDate(user = auth.currentUser) {
     console.warn('Could not query earliest activity log:', err);
   }
 
+  const ADMIN_EMAILS = ['away@homeincork.com', 'aislingmwalsh@gmail.com'];
+  const isAdmin = ADMIN_EMAILS.includes(user?.email?.toLowerCase());
+
   try {
-    // 2. Check user's trips
-    if (user?.uid) {
+    // 2. Check trips
+    let tripDocs = [];
+    if (isAdmin) {
+      try {
+        const allSnap = await getDocs(collection(db, "trips"));
+        tripDocs = allSnap.docs;
+      } catch (e) {
+        console.warn("Admin trip fetch fallback:", e);
+      }
+    }
+
+    if (tripDocs.length === 0 && user?.uid) {
       const qCreated = query(collection(db, "trips"), where("createdBy", "==", user.uid));
       const qMember = query(collection(db, "trips"), where(`members.${user.uid}`, "!=", null));
       const [snapCreated, snapMember] = await Promise.all([getDocs(qCreated), getDocs(qMember)]);
-
-      const tripDocs = [...snapCreated.docs, ...snapMember.docs];
-      tripDocs.forEach(d => {
-        const data = d.data();
-        if (data.createdAt) {
-          const c = data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : null);
-          if (c) dates.push(c);
-        }
-        if (data.startDate) {
-          dates.push(`${data.startDate}T00:00:00.000Z`);
-        }
-      });
+      const tripMap = new Map();
+      snapCreated.docs.forEach(d => tripMap.set(d.id, d));
+      snapMember.docs.forEach(d => tripMap.set(d.id, d));
+      tripDocs = Array.from(tripMap.values());
     }
+
+    tripDocs.forEach(d => {
+      const data = d.data();
+      if (data.createdAt) {
+        const c = data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : null);
+        if (c) dates.push(c);
+      }
+      if (data.startDate) {
+        dates.push(`${data.startDate}T00:00:00.000Z`);
+      }
+    });
   } catch (err) {
     console.warn('Could not query earliest trip:', err);
   }
@@ -156,7 +172,20 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
 
   // 2. Synthesize historical logs from existing Firestore trips & subcollections
   try {
-    if (user?.uid) {
+    const ADMIN_EMAILS = ['away@homeincork.com', 'aislingmwalsh@gmail.com'];
+    const isAdmin = ADMIN_EMAILS.includes(user?.email?.toLowerCase());
+
+    let userTrips = [];
+    if (isAdmin) {
+      try {
+        const allSnap = await getDocs(collection(db, "trips"));
+        userTrips = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.warn("Admin trip fetch fallback:", e);
+      }
+    }
+
+    if (userTrips.length === 0 && user?.uid) {
       const qCreated = query(collection(db, "trips"), where("createdBy", "==", user.uid));
       const qMember = query(collection(db, "trips"), where(`members.${user.uid}`, "!=", null));
       const [snapCreated, snapMember] = await Promise.all([getDocs(qCreated), getDocs(qMember)]);
@@ -164,7 +193,8 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
       const tripMap = new Map();
       snapCreated.docs.forEach(d => tripMap.set(d.id, { id: d.id, ...d.data() }));
       snapMember.docs.forEach(d => tripMap.set(d.id, { id: d.id, ...d.data() }));
-      const userTrips = Array.from(tripMap.values());
+      userTrips = Array.from(tripMap.values());
+    }
 
       for (const trip of userTrips) {
         // A. Trip creation event
@@ -293,7 +323,6 @@ export async function fetchActivitySummaryData(startIso, endIso, user = auth.cur
           console.warn(`Error reading subcollections for trip ${trip.id}:`, subErr);
         }
       }
-    }
   } catch (err) {
     console.warn('Error synthesizing historical logs from trips:', err);
   }
