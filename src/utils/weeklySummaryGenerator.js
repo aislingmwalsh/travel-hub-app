@@ -1,6 +1,61 @@
 // src/utils/weeklySummaryGenerator.js
 import { db, auth } from '../firebase';
-import { collection, getDocs, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, addDoc, query, orderBy, serverTimestamp, where, limit } from 'firebase/firestore';
+
+/**
+ * Finds the earliest recorded activity or trip creation date in Firestore.
+ * 
+ * @param {object} [user] - Current Firebase user object
+ * @returns {Promise<string>} ISO date string of earliest recorded item
+ */
+export async function findEarliestActivityDate(user = auth.currentUser) {
+  const dates = [];
+
+  try {
+    // 1. Check activity_logs
+    const logQ = query(collection(db, 'activity_logs'), orderBy('createdAt', 'asc'), limit(1));
+    const logSnap = await getDocs(logQ);
+    if (!logSnap.empty) {
+      const data = logSnap.docs[0].data();
+      const c = data.createdAt || (data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : null);
+      if (c) dates.push(c);
+    }
+  } catch (err) {
+    console.warn('Could not query earliest activity log:', err);
+  }
+
+  try {
+    // 2. Check user's trips
+    if (user?.uid) {
+      const qCreated = query(collection(db, "trips"), where("createdBy", "==", user.uid));
+      const qMember = query(collection(db, "trips"), where(`members.${user.uid}`, "!=", null));
+      const [snapCreated, snapMember] = await Promise.all([getDocs(qCreated), getDocs(qMember)]);
+
+      const tripDocs = [...snapCreated.docs, ...snapMember.docs];
+      tripDocs.forEach(d => {
+        const data = d.data();
+        if (data.createdAt) {
+          const c = data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : null);
+          if (c) dates.push(c);
+        }
+        if (data.startDate) {
+          dates.push(`${data.startDate}T00:00:00.000Z`);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Could not query earliest trip:', err);
+  }
+
+  // Filter valid dates and sort ascending (oldest first)
+  const validDates = dates.filter(d => d && !isNaN(new Date(d).getTime())).sort((a, b) => new Date(a) - new Date(b));
+
+  if (validDates.length > 0) {
+    return validDates[0];
+  }
+
+  return '2026-08-01T00:00:00.000Z';
+}
 
 /**
  * Returns a list of discrete Monday-to-Sunday weekly intervals from the earliest recorded date up to the current week.
@@ -69,26 +124,184 @@ export function generateWeeklyIntervals(earliestDateInput) {
 
 /**
  * Fetches activity logs within a given date range and returns computed metrics and log items.
+ * Seamlessly merges /activity_logs with historical trips and subcollections for comprehensive auditing.
  * 
  * @param {string} startIso - Start date in ISO string format (inclusive)
  * @param {string} endIso - End date in ISO string format (inclusive)
+ * @param {object} [user=auth.currentUser] - Current authenticated user
  * @returns {Promise<{ stats: object, logs: Array }>}
  */
-export async function fetchActivitySummaryData(startIso, endIso) {
-  const q = query(collection(db, 'activity_logs'), orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
-
+export async function fetchActivitySummaryData(startIso, endIso, user = auth.currentUser) {
   const logs = [];
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const createdAt = data.createdAt || (data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : null);
-    if (createdAt) {
-      if ((!startIso || createdAt >= startIso) && (!endIso || createdAt <= endIso)) {
-        logs.push({ id: docSnap.id, ...data, createdAt });
+  const seenEventKeys = new Set();
+
+  // 1. Fetch from activity_logs collection
+  try {
+    const q = query(collection(db, 'activity_logs'), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const createdAt = data.createdAt || (data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : null);
+      if (createdAt) {
+        if ((!startIso || createdAt >= startIso) && (!endIso || createdAt <= endIso)) {
+          const key = `${data.action}_${data.tripId || ''}_${data.summary || ''}_${createdAt.split('T')[0]}`;
+          seenEventKeys.add(key);
+          logs.push({ id: docSnap.id, ...data, createdAt });
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('Error reading activity_logs:', err);
+  }
+
+  // 2. Synthesize historical logs from existing Firestore trips & subcollections
+  try {
+    if (user?.uid) {
+      const qCreated = query(collection(db, "trips"), where("createdBy", "==", user.uid));
+      const qMember = query(collection(db, "trips"), where(`members.${user.uid}`, "!=", null));
+      const [snapCreated, snapMember] = await Promise.all([getDocs(qCreated), getDocs(qMember)]);
+
+      const tripMap = new Map();
+      snapCreated.docs.forEach(d => tripMap.set(d.id, { id: d.id, ...d.data() }));
+      snapMember.docs.forEach(d => tripMap.set(d.id, { id: d.id, ...d.data() }));
+      const userTrips = Array.from(tripMap.values());
+
+      for (const trip of userTrips) {
+        // A. Trip creation event
+        let tripCreatedAt = null;
+        if (trip.createdAt) {
+          tripCreatedAt = trip.createdAt.toDate ? trip.createdAt.toDate().toISOString() : (typeof trip.createdAt === 'string' ? trip.createdAt : null);
+        }
+        if (!tripCreatedAt && trip.startDate) {
+          tripCreatedAt = `${trip.startDate}T09:00:00.000Z`;
+        }
+
+        if (tripCreatedAt && (!startIso || tripCreatedAt >= startIso) && (!endIso || tripCreatedAt <= endIso)) {
+          const key = `trip_created_${trip.id}`;
+          const summary = `Created trip "${trip.title || 'Untitled Trip'}"${trip.destination ? ` (${trip.destination})` : ''}`;
+          const duplicateKey = `trip_created_${trip.id}_${summary}_${tripCreatedAt.split('T')[0]}`;
+          if (!seenEventKeys.has(key) && !seenEventKeys.has(duplicateKey)) {
+            seenEventKeys.add(key);
+            const creatorEmail = (trip.members && trip.members[trip.createdBy]?.email) || (trip.createdBy === user.uid ? user.email : '');
+            const creatorName = (trip.createdBy === user.uid && user.displayName) || creatorEmail?.split('@')[0] || 'Traveler';
+            logs.push({
+              id: `historical-trip-${trip.id}`,
+              action: 'trip_created',
+              userName: creatorName,
+              userEmail: creatorEmail,
+              summary: summary,
+              tripId: trip.id,
+              createdAt: tripCreatedAt
+            });
+          }
+        }
+
+        // Fetch subcollections in parallel
+        try {
+          const [itinSnap, invSnap, vaultSnap, packingSnap] = await Promise.all([
+            getDocs(collection(db, 'trips', trip.id, 'itinerary')),
+            getDocs(collection(db, 'trips', trip.id, 'invitations')),
+            getDocs(collection(db, 'trips', trip.id, 'vault')),
+            getDoc(doc(db, 'trips', trip.id, 'settings', 'packing_list'))
+          ]);
+
+          // B. Invitations
+          invSnap.docs.forEach(invDoc => {
+            const inv = invDoc.data();
+            let invCreatedAt = inv.createdAt?.toDate ? inv.createdAt.toDate().toISOString() : (inv.createdAt || tripCreatedAt);
+            if (invCreatedAt && (!startIso || invCreatedAt >= startIso) && (!endIso || invCreatedAt <= endIso)) {
+              const key = `member_invited_${trip.id}_${inv.email}`;
+              if (!seenEventKeys.has(key)) {
+                seenEventKeys.add(key);
+                logs.push({
+                  id: `historical-inv-${invDoc.id}`,
+                  action: 'member_invited',
+                  userName: inv.inviterEmail?.split('@')[0] || 'Admin',
+                  userEmail: inv.inviterEmail || '',
+                  summary: `Invited ${inv.email} as ${inv.role || 'collaborator'} to "${trip.title}"`,
+                  tripId: trip.id,
+                  invitedEmail: inv.email,
+                  role: inv.role,
+                  createdAt: invCreatedAt
+                });
+              }
+            }
+          });
+
+          // C. Itinerary Activities
+          itinSnap.docs.forEach(itemDoc => {
+            const item = itemDoc.data();
+            let itemCreatedAt = item.createdAt?.toDate ? item.createdAt.toDate().toISOString() : (item.createdAt || (item.date ? `${item.date}T10:00:00.000Z` : tripCreatedAt));
+            if (itemCreatedAt && (!startIso || itemCreatedAt >= startIso) && (!endIso || itemCreatedAt <= endIso)) {
+              const key = `itinerary_${trip.id}_${itemDoc.id}`;
+              if (!seenEventKeys.has(key)) {
+                seenEventKeys.add(key);
+                const isLuggage = item.category === 'luggage' || item.title?.toLowerCase().includes('luggage');
+                logs.push({
+                  id: `historical-itinerary-${itemDoc.id}`,
+                  action: isLuggage ? 'luggage_drop_added' : 'itinerary_added',
+                  userName: item.addedByName || user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  summary: `Added activity "${item.title || 'Activity'}" to "${trip.title}"${item.date ? ` (${item.date})` : ''}`,
+                  tripId: trip.id,
+                  itemId: itemDoc.id,
+                  createdAt: itemCreatedAt
+                });
+              }
+            }
+          });
+
+          // D. Vault items
+          vaultSnap.docs.forEach(vDoc => {
+            const v = vDoc.data();
+            let vCreatedAt = v.createdAt?.toDate ? v.createdAt.toDate().toISOString() : (v.createdAt || tripCreatedAt);
+            if (vCreatedAt && (!startIso || vCreatedAt >= startIso) && (!endIso || vCreatedAt <= endIso)) {
+              const key = `vault_${trip.id}_${vDoc.id}`;
+              if (!seenEventKeys.has(key)) {
+                seenEventKeys.add(key);
+                logs.push({
+                  id: `historical-vault-${vDoc.id}`,
+                  action: 'vault_link_added',
+                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  summary: `Added link "${v.title || 'Document'}" to "${trip.title}" vault`,
+                  tripId: trip.id,
+                  createdAt: vCreatedAt
+                });
+              }
+            }
+          });
+
+          // E. Packing List
+          if (packingSnap.exists()) {
+            const pData = packingSnap.data();
+            let pCreatedAt = pData.createdAt?.toDate ? pData.createdAt.toDate().toISOString() : (pData.createdAt || tripCreatedAt);
+            if (pCreatedAt && (!startIso || pCreatedAt >= startIso) && (!endIso || pCreatedAt <= endIso)) {
+              const key = `packing_${trip.id}`;
+              if (!seenEventKeys.has(key)) {
+                seenEventKeys.add(key);
+                logs.push({
+                  id: `historical-packing-${trip.id}`,
+                  action: 'packing_list_created',
+                  userName: user.displayName || user.email?.split('@')[0] || 'Traveler',
+                  summary: `Created packing list for "${trip.title}"`,
+                  tripId: trip.id,
+                  createdAt: pCreatedAt
+                });
+              }
+            }
+          }
+        } catch (subErr) {
+          console.warn(`Error reading subcollections for trip ${trip.id}:`, subErr);
+        }
       }
     }
-  });
+  } catch (err) {
+    console.warn('Error synthesizing historical logs from trips:', err);
+  }
 
+  // Sort newest first
+  logs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  // Calculate statistics
   const stats = {
     tripsCreated: 0,
     membersInvited: 0,
@@ -139,7 +352,8 @@ export async function generateAndSendWeeklySummary(options = {}) {
   }
 
   try {
-    const { stats, logs } = await fetchActivitySummaryData(startIso, endIso);
+    const user = options.user || auth.currentUser;
+    const { stats, logs } = await fetchActivitySummaryData(startIso, endIso, user);
 
     const startDateFormatted = new Date(startIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
     const endDateFormatted = new Date(endIso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });

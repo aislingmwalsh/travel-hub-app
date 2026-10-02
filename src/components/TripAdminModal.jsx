@@ -5,7 +5,7 @@ import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, getDoc, setDoc,
 import { X, Users, Link as LinkIcon, Shield, Trash2, Plus, ExternalLink, Globe, UserPlus, AlertTriangle, Tag, Download, Edit2, User, Sliders, Mail, Calendar, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currencyUtils';
 import { logActivity } from '../utils/activityLogger';
-import { generateAndSendWeeklySummary, generateWeeklyIntervals, fetchActivitySummaryData } from '../utils/weeklySummaryGenerator';
+import { generateAndSendWeeklySummary, generateWeeklyIntervals, fetchActivitySummaryData, findEarliestActivityDate } from '../utils/weeklySummaryGenerator';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Accommodation 🏨', color: 'rose' },
@@ -79,31 +79,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     async function loadIntervals() {
       try {
-        let earliestDate = '2026-08-01';
-        try {
-          const firstLogQ = query(collection(db, 'activity_logs'), orderBy('createdAt', 'asc'), limit(1));
-          const firstLogSnap = await getDocs(firstLogQ);
-          if (!firstLogSnap.empty) {
-            const data = firstLogSnap.docs[0].data();
-            if (data.createdAt) {
-              earliestDate = data.createdAt;
-            }
-          } else {
-            const firstTripQ = query(collection(db, 'trips'), orderBy('createdAt', 'asc'), limit(1));
-            const firstTripSnap = await getDocs(firstTripQ);
-            if (!firstTripSnap.empty) {
-              const data = firstTripSnap.docs[0].data();
-              if (data.createdAt?.toDate) {
-                earliestDate = data.createdAt.toDate().toISOString();
-              } else if (data.createdAt) {
-                earliestDate = data.createdAt;
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('Could not query earliest date, using default:', e);
-        }
-
+        const earliestDate = await findEarliestActivityDate(currentUser);
         const intervals = generateWeeklyIntervals(earliestDate);
         setWeeklyIntervals(intervals);
         if (intervals.length > 0) {
@@ -115,7 +91,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     }
 
     loadIntervals();
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, isAdmin]);
 
   // Load preview stats whenever selectedWeekKey or weeklyIntervals change
   useEffect(() => {
@@ -127,7 +103,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
     async function loadStats() {
       setLoadingWeekStats(true);
       try {
-        const { stats } = await fetchActivitySummaryData(interval.startIso, interval.endIso);
+        const { stats } = await fetchActivitySummaryData(interval.startIso, interval.endIso, currentUser);
         if (isMounted) {
           setWeekStats(stats);
         }
@@ -142,7 +118,7 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
 
     loadStats();
     return () => { isMounted = false; };
-  }, [selectedWeekKey, weeklyIntervals]);
+  }, [selectedWeekKey, weeklyIntervals, currentUser]);
 
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -864,7 +840,8 @@ export default function TripAdminModal({ isOpen, onClose, currentUser, onDeleteT
         targetEmail: 'away@homeincork.com',
         startIso: selectedInterval?.startIso,
         endIso: selectedInterval?.endIso,
-        customLabel: selectedInterval?.label
+        customLabel: selectedInterval?.label,
+        user: currentUser
       });
       setDigestNotice(`Success! Report for "${selectedInterval?.label || 'selected week'}" queued with ${res.logCount} recorded events.`);
     } catch (err) {
